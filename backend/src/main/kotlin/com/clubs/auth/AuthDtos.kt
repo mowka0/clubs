@@ -1,14 +1,7 @@
 package com.clubs.auth
 
+import com.clubs.user.UserDto
+
 data class AuthRequest(val initData: String)
 
-data class AuthResponse(val token: String, val user: AuthUserDto)
-
-data class AuthUserDto(
-    val id: String,
-    val telegramId: Long,
-    val username: String?,
-    val firstName: String?,
-    val lastName: String?,
-    val avatarUrl: String?
-)
+data class AuthResponse(val token: String, val user: UserDto)

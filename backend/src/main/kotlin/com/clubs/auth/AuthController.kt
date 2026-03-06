@@ -1,5 +1,6 @@
 package com.clubs.auth
 
+import com.clubs.user.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -11,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController
 class AuthController(
     private val telegramValidator: TelegramInitDataValidator,
     private val jwtService: JwtService,
-    private val userRepository: UserRepository
+    private val userService: UserService
 ) {
 
     @PostMapping("/telegram")
@@ -23,7 +24,7 @@ class AuthController(
         val telegramUser = telegramValidator.extractTelegramUser(request.initData)
             ?: return ResponseEntity.status(400).build()
 
-        val user = userRepository.createOrUpdate(
+        val user = userService.createOrUpdate(
             telegramId = telegramUser.id,
             username = telegramUser.username,
             firstName = telegramUser.first_name,
@@ -32,7 +33,7 @@ class AuthController(
         )
 
         val token = jwtService.generateToken(
-            userId = java.util.UUID.fromString(user.id),
+            userId = user.id,
             telegramId = telegramUser.id
         )
 

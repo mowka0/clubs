@@ -191,7 +191,7 @@
         "Шаг 4: Вызвать findById — получить пользователя по UUID"
       ],
       "dependencies": ["TASK-003"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-008",

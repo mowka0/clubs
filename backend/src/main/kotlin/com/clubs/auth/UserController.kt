@@ -1,6 +1,7 @@
 package com.clubs.auth
 
-import com.clubs.config.NotFoundException
+import com.clubs.user.UserDto
+import com.clubs.user.UserService
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
@@ -11,18 +12,16 @@ import java.util.UUID
 
 @RestController
 @RequestMapping("/api/users")
-class UserController(private val userRepository: UserRepository) {
+class UserController(private val userService: UserService) {
 
     @GetMapping("/me")
-    fun getMe(authentication: Authentication): ResponseEntity<AuthUserDto> {
+    fun getMe(authentication: Authentication): ResponseEntity<UserDto> {
         val userId = UUID.fromString(authentication.principal as String)
-        val user = userRepository.findById(userId) ?: throw NotFoundException("User not found")
-        return ResponseEntity.ok(user)
+        return ResponseEntity.ok(userService.getById(userId))
     }
 
     @GetMapping("/{id}")
-    fun getUser(@PathVariable id: UUID): ResponseEntity<AuthUserDto> {
-        val user = userRepository.findById(id) ?: throw NotFoundException("User not found")
-        return ResponseEntity.ok(user)
+    fun getUser(@PathVariable id: UUID): ResponseEntity<UserDto> {
+        return ResponseEntity.ok(userService.getById(id))
     }
 }

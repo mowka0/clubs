@@ -118,6 +118,25 @@
 
 ---
 
+## [TASK-007] User: jOOQ-репозиторий, UserDto, UserService
+- **Дата:** 2026-03-06
+- **Статус:** done
+- **Что сделано:**
+  - `user/UserDto.kt` — data class с полными полями: id (UUID), telegramId, username, firstName, lastName, avatarUrl, city, createdAt, updatedAt
+  - `user/UserRepository.kt` — jOOQ DSLContext с использованием generated `USERS` table: `findByTelegramId`, `createOrUpdate`, `findById`, private `toDto()` extension
+  - `user/UserService.kt` — Spring @Service: `findByTelegramId`, `createOrUpdate`, `findById`, `getById` (throws NotFoundException)
+  - `auth/AuthDtos.kt` — AuthResponse теперь использует UserDto из user пакета, AuthUserDto удалён
+  - `auth/AuthController.kt` — инжектирует UserService вместо UserRepository, user.id теперь UUID напрямую
+  - `auth/UserController.kt` — инжектирует UserService, возвращает UserDto
+  - `auth/UserRepository.kt` — удалён (заменён на user/UserRepository.kt)
+  - `./gradlew build` — BUILD SUCCESSFUL, все тесты проходят
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-008 — добавить PUT /api/users/me и GET /api/geo/city (зависит от TASK-004 → нужен завершённый статус)
+  2. TASK-010 — ClubService (валидация, лимит 10 клубов, авто-membership organizer)
+
+---
+
 ## [TASK-009] Club: jOOQ-репозиторий с фильтрами, поиском, CRUD
 - **Дата:** 2026-03-06
 - **Статус:** done
