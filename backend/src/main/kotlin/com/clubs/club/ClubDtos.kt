@@ -55,6 +55,12 @@ data class UpdateClubDto(
     val telegramGroupId: Long? = null
 )
 
+data class MonthlyRevenueDto(
+    val totalRevenue: Int,
+    val organizerShare: Int,
+    val platformShare: Int
+)
+
 data class ClubFilters(
     val city: String? = null,
     val category: String? = null,

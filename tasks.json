@@ -263,7 +263,7 @@
         "Шаг 5: Создать клуб без аватара — avatar_url = null, клуб создан"
       ],
       "dependencies": ["TASK-009"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-011",

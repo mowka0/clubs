@@ -118,6 +118,27 @@
 
 ---
 
+## [TASK-010] Club: ClubService — бизнес-логика создания клуба
+- **Дата:** 2026-03-06
+- **Статус:** done
+- **Что сделано:**
+  - `storage/FileStorageService.kt` — интерфейс `uploadFile`, `getFileUrl`, `deleteFile` (используется в TASK-006)
+  - `club/ClubDtos.kt` — добавлен `MonthlyRevenueDto(totalRevenue, organizerShare, platformShare)`
+  - `club/ClubService.kt` — Spring @Service:
+    - `createClub()` — валидация (name <=60, description <=500, memberLimit 10-80), проверка лимита (max 10 клубов), опциональная загрузка аватара через `FileStorageService?`, создание клуба, автосоздание organizer membership через jOOQ DSLContext
+    - `calculateRevenue(price, memberLimit)` — 80/20 split: organizer=total*0.8, platform=total*0.2
+    - `createOrganizerMembership()` — private, вставляет в MEMBERSHIPS role=organizer, status=active, locked_subscription_price
+  - `build.gradle.kts` — добавлена зависимость `org.mockito.kotlin:mockito-kotlin:5.4.0`
+  - `ClubServiceTest.kt` — 17 unit-тестов через mockito-kotlin: все проходят
+  - `./gradlew build` — BUILD SUCCESSFUL
+- **Проблемы:**
+  - Kotlin + Mockito: `any()` вызывает `NullPointerException` для non-null Kotlin параметров — решено через `mockito-kotlin:5.4.0`
+- **Следующие шаги:**
+  1. TASK-011 — Club REST-контроллер (зависит от TASK-004 in_progress и TASK-010 done)
+  2. TASK-014 — MembershipRepository + сервис
+
+---
+
 ## [TASK-007] User: jOOQ-репозиторий, UserDto, UserService
 - **Дата:** 2026-03-06
 - **Статус:** done
