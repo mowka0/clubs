@@ -1,0 +1,28 @@
+package com.clubs.auth
+
+import com.clubs.config.NotFoundException
+import org.springframework.http.ResponseEntity
+import org.springframework.security.core.Authentication
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
+import java.util.UUID
+
+@RestController
+@RequestMapping("/api/users")
+class UserController(private val userRepository: UserRepository) {
+
+    @GetMapping("/me")
+    fun getMe(authentication: Authentication): ResponseEntity<AuthUserDto> {
+        val userId = UUID.fromString(authentication.principal as String)
+        val user = userRepository.findById(userId) ?: throw NotFoundException("User not found")
+        return ResponseEntity.ok(user)
+    }
+
+    @GetMapping("/{id}")
+    fun getUser(@PathVariable id: UUID): ResponseEntity<AuthUserDto> {
+        val user = userRepository.findById(id) ?: throw NotFoundException("User not found")
+        return ResponseEntity.ok(user)
+    }
+}

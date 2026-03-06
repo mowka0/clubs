@@ -1,0 +1,14 @@
+.gradle/
+build/
+src/generated/
+!gradle/wrapper/gradle-wrapper.jar
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Kotlin
+*.class

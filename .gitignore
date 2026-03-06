@@ -1,0 +1,9 @@
+secrets.env
+backend/build/
+backend/.gradle/
+backend/src/generated/
+*.class
+.DS_Store
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local

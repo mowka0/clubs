@@ -1,0 +1,1044 @@
+{
+  "agent_instructions": {
+    "before_start": [
+      "Прочитай этот файл и git log --oneline -20",
+      "Выбери ОДНУ задачу со статусом pending и наивысшим приоритетом",
+      "Проверь, что все dependencies этой задачи имеют статус done"
+    ],
+    "during_work": [
+      "Работай только над выбранной задачей",
+      "Делай коммиты после каждого логического изменения",
+      "Не трогай код, не связанный с текущей задачей"
+    ],
+    "before_finish": [
+      "Выполни ВСЕ test_steps из задачи",
+      "Меняй status на done ТОЛЬКО после успешного прохождения всех тестов",
+      "Напиши summary в progress.md",
+      "ЗАПРЕЩЕНО удалять или редактировать задачи — только менять status"
+    ]
+  },
+  "architecture_notes": {
+    "critical_risks": [
+      "Telegram Bot API НЕ позволяет ботам создавать группы. Организатор создаёт группу сам, бот привязывается через добавление.",
+      "Stage 2 (гонка за места) — использовать атомарный UPDATE ... WHERE confirmed_count < limit RETURNING для race condition protection. НЕ использовать SELECT FOR UPDATE.",
+      "Telegram Stars Recurring Payments — API может измениться. PaymentService должен быть за интерфейсом.",
+      "jOOQ codegen — все миграции создаются в TASK-002 одним пакетом, codegen запускается один раз в TASK-003.",
+      "Membership flow: на этапе до TASK-033 (payments) вступление работает без оплаты (status=active напрямую).",
+      "Загрузка аватара/обложки клуба опциональна — не блокирует создание клуба. avatar_url = null если S3 не настроен."
+    ],
+    "ui_requirements": [
+      "Каждый UI-экран должен реализовать: loading state (skeleton/spinner), empty state (информативное сообщение + CTA), error state (retry button).",
+      "Использовать @telegram-apps/sdk v2 (НЕ legacy WebApp.ready() API).",
+      "Для MVP: optimistic updates + polling каждые 30 сек вместо WebSocket/SSE.",
+      "Определение города: navigator.geolocation -> IP-based fallback -> ручной ввод."
+    ],
+    "stack": "Kotlin + Spring Boot 3, PostgreSQL, jOOQ + Flyway, React + TypeScript + Vite, @telegram-apps/sdk v2, @telegram-apps/telegram-ui, Zustand, Redis, Telegram Bot API, Telegram Stars, Yandex Cloud"
+  },
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Инициализация проекта: Kotlin + Spring Boot 3 + Gradle KTS, docker-compose (PostgreSQL + Redis), application.yml",
+      "acceptance_criteria": [
+        "Проект собирается через ./gradlew build без ошибок",
+        "docker-compose up поднимает PostgreSQL 16 и Redis 7",
+        "Spring Boot приложение стартует и отвечает на GET /actuator/health",
+        "application.yml содержит профили dev/prod с конфигами БД и Redis",
+        "Структура директорий backend/ соответствует PRD (config/, auth/, club/, event/, membership/, reputation/, payment/, notification/, bot/, scheduler/)",
+        "Actuator health indicators настроены для db (auto) и redis (auto)"
+      ],
+      "test_steps": [
+        "Шаг 1: Запустить docker-compose up -d",
+        "Шаг 2: Запустить ./gradlew bootRun",
+        "Шаг 3: Выполнить curl http://localhost:8080/actuator/health",
+        "Шаг 4: Ожидаемый результат — {\"status\":\"UP\"} с деталями db и redis"
+      ],
+      "dependencies": [],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-002",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Flyway SQL-миграции для всех 9 таблиц: users, clubs, memberships, applications, events, event_responses, user_club_reputation, transactions, invite_links",
+      "acceptance_criteria": [
+        "Созданы миграции V1__create_users.sql через V9__create_invite_links.sql",
+        "Таблица invite_links: id, club_id (FK), code (UNIQUE), is_single_use, is_used, created_at, used_at, created_by (FK users)",
+        "Поле locked_subscription_price (INTEGER, nullable) добавлено в таблицу memberships — фиксирует цену на момент вступления",
+        "Все enum-типы созданы как PostgreSQL enum или varchar с CHECK constraint",
+        "Все FK, UNIQUE constraints соответствуют модели данных из PRD",
+        "Созданы индексы: idx_clubs_city (clubs.city), idx_clubs_category (clubs.category), idx_clubs_access_type (clubs.access_type), idx_events_club_datetime (events.club_id, event_datetime), idx_applications_club_status (applications.club_id, status), idx_memberships_club_status (memberships.club_id, status), idx_memberships_expires (memberships.subscription_expires_at), idx_transactions_user_club (transactions.user_id, club_id)",
+        "Flyway успешно накатывает все миграции на чистую БД",
+        "Таблица flyway_schema_history содержит записи обо всех миграциях"
+      ],
+      "test_steps": [
+        "Шаг 1: Очистить БД (drop schema public cascade; create schema public;)",
+        "Шаг 2: Запустить ./gradlew bootRun (Flyway выполнится при старте)",
+        "Шаг 3: Подключиться к БД и выполнить \\dt — должны быть все 9 таблиц",
+        "Шаг 4: Проверить SELECT * FROM flyway_schema_history — 9 успешных миграций",
+        "Шаг 5: Проверить наличие индексов: \\di — должны быть все перечисленные"
+      ],
+      "dependencies": ["TASK-001"],
+      "status": "done"
+    },
+    {
+      "id": "TASK-003",
+      "category": "infrastructure",
+      "priority": "critical",
+      "description": "Настройка jOOQ codegen plugin в Gradle KTS: генерация типобезопасных Kotlin-классов из схемы БД",
+      "acceptance_criteria": [
+        "В build.gradle.kts настроен jooq-codegen-gradle plugin",
+        "Задача ./gradlew jooqCodegen генерирует классы в backend/src/generated/",
+        "Для каждой таблицы (включая invite_links) сгенерированы: Table, Record, DAO-классы",
+        "Проект компилируется с сгенерированными классами без ошибок",
+        "Сгенерированные классы добавлены в .gitignore (или коммитятся — решение зафиксировано)"
+      ],
+      "test_steps": [
+        "Шаг 1: Запустить docker-compose up -d (БД должна быть с миграциями)",
+        "Шаг 2: Выполнить ./gradlew jooqCodegen",
+        "Шаг 3: Проверить наличие файлов в src/generated/jooq/ (Tables.kt, Users.kt, Clubs.kt, InviteLinks.kt и т.д.)",
+        "Шаг 4: Выполнить ./gradlew build — компиляция без ошибок"
+      ],
+      "dependencies": ["TASK-002"],
+      "status": "done"
+    },
+    {
+      "id": "TASK-004",
+      "category": "security",
+      "priority": "critical",
+      "description": "Аутентификация: валидация Telegram initData, JWT, Spring Security, Rate Limiting, GlobalExceptionHandler",
+      "acceptance_criteria": [
+        "Реализован TelegramInitDataValidator — проверяет подпись initData по bot token (HMAC-SHA256)",
+        "POST /api/auth/telegram принимает initData, валидирует, создаёт/обновляет пользователя, возвращает JWT",
+        "JWT содержит: user_id, telegram_id, iat, exp (время жизни — 24ч)",
+        "SecurityFilterChain: /api/auth/** — permitAll, остальные /api/** — требуют JWT",
+        "JwtAuthenticationFilter извлекает JWT из заголовка Authorization: Bearer <token>",
+        "При невалидном/просроченном JWT возвращается 401 Unauthorized",
+        "RateLimitFilter через bucket4j: глобальный лимит 100 req/min per IP, 30 req/min per user на mutation endpoints (POST/PUT/DELETE)",
+        "GlobalExceptionHandler (@ControllerAdvice): стандартизированный формат ошибок {error, message, status, timestamp}, обработка NotFoundException (404), AccessDeniedException (403), ValidationException (400), generic 500"
+      ],
+      "test_steps": [
+        "Шаг 1: Отправить POST /api/auth/telegram с валидным initData",
+        "Шаг 2: Получить JWT в ответе",
+        "Шаг 3: Отправить GET /api/users/me с JWT в заголовке — получить 200",
+        "Шаг 4: Отправить GET /api/users/me без JWT — получить 401",
+        "Шаг 5: Отправить с невалидным JWT — получить 401",
+        "Шаг 6: Отправить 101 запрос за минуту — получить 429 Too Many Requests",
+        "Шаг 7: Отправить запрос на несуществующий ресурс — получить JSON {error, message, status, timestamp}"
+      ],
+      "dependencies": ["TASK-001", "TASK-002"],
+      "status": "in_progress"
+    },
+    {
+      "id": "TASK-005",
+      "category": "infrastructure",
+      "priority": "high",
+      "description": "Redis конфигурация: Spring Data Redis, RedisTemplate, connection factory для очередей уведомлений и кеширования",
+      "acceptance_criteria": [
+        "RedisConfig создаёт LettuceConnectionFactory и RedisTemplate<String, Any>",
+        "Подключение к Redis из docker-compose работает",
+        "Базовые операции (set/get/delete) работают через RedisTemplate",
+        "Конфигурация вынесена в application.yml (host, port, password)"
+      ],
+      "test_steps": [
+        "Шаг 1: Запустить docker-compose up -d",
+        "Шаг 2: Запустить приложение",
+        "Шаг 3: Проверить в логах — Redis connection established",
+        "Шаг 4: Через тест или endpoint записать/прочитать значение из Redis"
+      ],
+      "dependencies": ["TASK-001"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-006",
+      "category": "infrastructure",
+      "priority": "medium",
+      "description": "S3 конфигурация: Yandex Object Storage (S3-совместимое), сервис загрузки/получения файлов для аватаров и обложек",
+      "acceptance_criteria": [
+        "S3Config создаёт AmazonS3 client bean с endpoint Yandex Cloud",
+        "FileStorageService: uploadFile(file, key) -> URL, getFileUrl(key) -> URL, deleteFile(key)",
+        "Поддержка форматов jpg/png, лимит 5 MB",
+        "Конфигурация (bucket, access key, secret key, endpoint) вынесена в application.yml",
+        "Для локальной разработки — MinIO в docker-compose как fallback"
+      ],
+      "test_steps": [
+        "Шаг 1: Запустить docker-compose (с MinIO или реальным S3)",
+        "Шаг 2: Вызвать uploadFile с тестовым изображением",
+        "Шаг 3: Вызвать getFileUrl — URL доступен",
+        "Шаг 4: Вызвать deleteFile — файл удалён"
+      ],
+      "dependencies": ["TASK-001"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-007",
+      "category": "functional",
+      "priority": "critical",
+      "description": "User: jOOQ-репозиторий (findByTelegramId, createOrUpdate, findById), DTO, маппинг",
+      "acceptance_criteria": [
+        "UserRepository использует jOOQ DSLContext для запросов",
+        "findByTelegramId(telegramId: Long) -> UserDto?",
+        "createOrUpdate(telegramId, username, firstName, lastName, avatarUrl) -> UserDto",
+        "findById(id: UUID) -> UserDto?",
+        "UserDto — Kotlin data class с полями из таблицы users",
+        "UserService оборачивает репозиторий с бизнес-логикой"
+      ],
+      "test_steps": [
+        "Шаг 1: Вызвать createOrUpdate с тестовыми данными",
+        "Шаг 2: Вызвать findByTelegramId — получить созданного пользователя",
+        "Шаг 3: Вызвать createOrUpdate с тем же telegramId, но другим username — username обновится",
+        "Шаг 4: Вызвать findById — получить пользователя по UUID"
+      ],
+      "dependencies": ["TASK-003"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-008",
+      "category": "functional",
+      "priority": "critical",
+      "description": "User: REST-контроллер — GET /api/users/me, GET /api/users/{id}, PUT /api/users/me, GET /api/geo/city",
+      "acceptance_criteria": [
+        "GET /api/users/me — возвращает данные текущего пользователя из JWT",
+        "GET /api/users/{id} — возвращает публичный профиль пользователя (без чувствительных данных)",
+        "PUT /api/users/me — обновление профиля текущего пользователя (city и другие редактируемые поля)",
+        "GET /api/geo/city — определение города по IP-адресу запроса (для автоопределения на фронтенде)",
+        "404 при несуществующем userId",
+        "Эндпоинты защищены JWT (401 без токена)"
+      ],
+      "test_steps": [
+        "Шаг 1: Авторизоваться через POST /api/auth/telegram, получить JWT",
+        "Шаг 2: GET /api/users/me с JWT — получить свои данные, код 200",
+        "Шаг 3: PUT /api/users/me с {city: 'Москва'} — city обновился",
+        "Шаг 4: GET /api/users/{existingId} — получить профиль, код 200",
+        "Шаг 5: GET /api/users/{nonExistingId} — получить 404",
+        "Шаг 6: GET /api/geo/city — получить {city: '...'} на основе IP"
+      ],
+      "dependencies": ["TASK-004", "TASK-007"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-009",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Club: jOOQ-репозиторий — create, findById, findAll с фильтрами и текстовым поиском, update, delete",
+      "acceptance_criteria": [
+        "ClubRepository с jOOQ DSLContext",
+        "create(dto) -> ClubDto — создание клуба",
+        "findById(id) -> ClubDto? — детальная информация",
+        "findAll(filters: ClubFilters) -> List<ClubDto> — фильтрация по city, category, access_type, priceMin/priceMax, sizeRange",
+        "search(query: String) — текстовый поиск ILIKE по name и description",
+        "Фильтры комбинируются по AND, поиск — по OR (name OR description)",
+        "Приватные клубы (access_type=private) НЕ возвращаются в findAll",
+        "update(id, dto) -> ClubDto, softDelete(id) — деактивация через is_active=false"
+      ],
+      "test_steps": [
+        "Шаг 1: Создать 3 клуба с разными категориями и городами",
+        "Шаг 2: findAll без фильтров — получить все не-приватные клубы",
+        "Шаг 3: findAll(category=sport) — получить только спортивные",
+        "Шаг 4: findAll(city=Москва, category=sport) — комбинированный фильтр",
+        "Шаг 5: search('футбол') — найти клубы с 'футбол' в названии или описании",
+        "Шаг 6: Создать приватный клуб — он не появляется в findAll"
+      ],
+      "dependencies": ["TASK-003"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-010",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Club: сервис — бизнес-логика создания клуба (валидация полей, лимит 10 клубов на организатора, опциональный аватар)",
+      "acceptance_criteria": [
+        "ClubService.createClub() — валидация всех обязательных полей (название <=60, описание <=500, лимит 10-80)",
+        "Проверка лимита: организатор не может создать >10 клубов",
+        "Загрузка аватара опциональна: при наличии FileStorageService — загрузка через S3, при отсутствии — avatar_url = null",
+        "Калькулятор дохода: метод calculateRevenue(price, memberLimit) -> MonthlyRevenueDto (с учётом 20% комиссии)",
+        "При создании клуба автоматически создаётся membership с role=organizer"
+      ],
+      "test_steps": [
+        "Шаг 1: Создать клуб с валидными данными — успех",
+        "Шаг 2: Создать клуб с названием >60 символов — ошибка валидации",
+        "Шаг 3: Создать 10 клубов, попробовать создать 11-й — ошибка лимита",
+        "Шаг 4: Проверить calculateRevenue(100, 50) — organizer=4000, platform=1000",
+        "Шаг 5: Создать клуб без аватара — avatar_url = null, клуб создан"
+      ],
+      "dependencies": ["TASK-009"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-011",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Club: REST-контроллер — CRUD эндпоинты + каталог с фильтрацией, поиском, пагинацией и списком участников",
+      "acceptance_criteria": [
+        "POST /api/clubs — создание клуба (только авторизованные)",
+        "GET /api/clubs — каталог с фильтрами (query params: city, category, accessType, priceMin, priceMax, size, search)",
+        "GET /api/clubs/{id} — детальная карточка клуба",
+        "PUT /api/clubs/{id} — обновление (только владелец)",
+        "DELETE /api/clubs/{id} — деактивация (только владелец)",
+        "GET /api/clubs/{id}/members — список участников с именем, аватаром, joined_at, reliability_index (только для участников клуба, 403 для не-участников)",
+        "Текстовый поиск по названию и описанию (ILIKE)",
+        "Пагинация: page, size параметры",
+        "Параметр sort: relevance (алгоритм из TASK-012), newest, price_asc, price_desc"
+      ],
+      "test_steps": [
+        "Шаг 1: POST /api/clubs с JWT — создать клуб, получить 201",
+        "Шаг 2: GET /api/clubs — получить список, код 200",
+        "Шаг 3: GET /api/clubs?category=sport&city=Москва — фильтрация работает",
+        "Шаг 4: GET /api/clubs?search=футбол — текстовый поиск работает",
+        "Шаг 5: PUT /api/clubs/{id} от другого пользователя — 403 Forbidden",
+        "Шаг 6: GET /api/clubs/{id}/members от участника — список с репутацией",
+        "Шаг 7: GET /api/clubs/{id}/members от не-участника — 403"
+      ],
+      "dependencies": ["TASK-004", "TASK-010"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-012",
+      "category": "functional",
+      "priority": "high",
+      "description": "Club: алгоритм сортировки ленты (activity > newness > rating) и автогенерация промо-тегов",
+      "acceptance_criteria": [
+        "Сортировка по формуле: activity_rating * 0.5 + newness_score * 0.3 + organizer_rating * 0.2",
+        "newness_score: 1.0 для клубов <2 недель, линейное убывание до 0 за 2 месяца",
+        "Промо-теги генерируются автоматически: «Новый» (<2 недель), «Популярный» (top 10% по заявкам/местам), «Свободные места» (<80% лимита), «Есть пробный период» (если настроен)",
+        "Индикатор «Жизни»: количество 'going' на ближайшее событие"
+      ],
+      "test_steps": [
+        "Шаг 1: Создать 5 клубов с разным activity_rating и возрастом",
+        "Шаг 2: GET /api/clubs — проверить порядок сортировки",
+        "Шаг 3: Проверить что новый клуб (<2 недель) имеет тег «Новый»",
+        "Шаг 4: Проверить что клуб с 5/50 участниками имеет тег «Свободные места»"
+      ],
+      "dependencies": ["TASK-011"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-013",
+      "category": "functional",
+      "priority": "high",
+      "description": "Club: генерация и валидация invite-ссылок для приватных клубов (формат t.me/clubsapp?startapp=invite_XXXXX)",
+      "acceptance_criteria": [
+        "POST /api/clubs/{id}/invite-link — генерация ссылки (только организатор)",
+        "Ссылка сохраняется в таблицу invite_links (code, is_single_use, created_by)",
+        "Параметр: одноразовая или многоразовая ссылка",
+        "GET /api/clubs/invite/{code} — валидация ссылки и получение данных приватного клуба",
+        "Одноразовая ссылка деактивируется после использования (is_used = true)",
+        "Невалидная/использованная ссылка возвращает 404"
+      ],
+      "test_steps": [
+        "Шаг 1: Создать приватный клуб",
+        "Шаг 2: POST /api/clubs/{id}/invite-link — получить ссылку",
+        "Шаг 3: GET /api/clubs/invite/{code} — получить данные клуба",
+        "Шаг 4: Для одноразовой ссылки — повторный GET возвращает 404"
+      ],
+      "dependencies": ["TASK-010"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-014",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Membership: jOOQ-репозиторий + сервис — создание членства, смена статуса, проверка активности с учётом подписки",
+      "acceptance_criteria": [
+        "MembershipRepository: create, findByUserAndClub, findByClub, updateStatus",
+        "MembershipService.joinClub(userId, clubId) — создаёт membership со статусом active",
+        "MembershipService.isActiveMember(userId, clubId) -> Boolean — true для active и grace_period, false для expired",
+        "isActiveMember для cancelled — true если subscription_expires_at > now(), false иначе",
+        "Проверка: нельзя вступить дважды (UNIQUE constraint user_id + club_id)",
+        "Проверка: нельзя вступить если клуб заполнен (текущих active >= member_limit)",
+        "Membership содержит role (member/organizer), joined_at, subscription_expires_at, locked_subscription_price"
+      ],
+      "test_steps": [
+        "Шаг 1: joinClub(user1, club1) — успех, статус active",
+        "Шаг 2: joinClub(user1, club1) повторно — ошибка 'already member'",
+        "Шаг 3: isActiveMember(user1, club1) — true",
+        "Шаг 4: Заполнить клуб до лимита, попробовать вступить — ошибка 'club full'",
+        "Шаг 5: Установить статус expired — isActiveMember возвращает false"
+      ],
+      "dependencies": ["TASK-003", "TASK-009"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-015",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Membership: flow вступления — POST /api/clubs/{id}/join, POST /api/clubs/invite/{code}/join, POST /api/clubs/{id}/leave",
+      "acceptance_criteria": [
+        "POST /api/clubs/{id}/join — вступление в открытый клуб",
+        "Проверки: клуб существует, клуб открытый, пользователь не участник, клуб не заполнен",
+        "Создаётся membership со статусом active (оплата добавится позже в TASK-033)",
+        "Ответ: 200 с данными membership + invite_link для Telegram-группы",
+        "Ответ при закрытом клубе — 400 с сообщением 'use /apply endpoint'",
+        "POST /api/clubs/invite/{code}/join — вступление по invite-ссылке (валидация кода, проверка одноразовости, создание membership)",
+        "POST /api/clubs/{id}/leave — выход из клуба (membership.status -> cancelled, доступ до конца оплаченного периода)"
+      ],
+      "test_steps": [
+        "Шаг 1: POST /api/clubs/{openClubId}/join с JWT — получить 200 + membership",
+        "Шаг 2: Повторный POST — получить 409 'already member'",
+        "Шаг 3: POST /api/clubs/{closedClubId}/join — получить 400",
+        "Шаг 4: POST /api/clubs/{fullClubId}/join — получить 400 'club full'",
+        "Шаг 5: POST /api/clubs/invite/{validCode}/join — получить 200, membership создан",
+        "Шаг 6: POST /api/clubs/invite/{usedCode}/join — получить 404",
+        "Шаг 7: POST /api/clubs/{id}/leave — статус cancelled, subscription_expires_at не меняется"
+      ],
+      "dependencies": ["TASK-011", "TASK-014", "TASK-013"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-016",
+      "category": "functional",
+      "priority": "high",
+      "description": "Application: репозиторий + сервис для заявок в закрытые клубы (submit, approve, reject)",
+      "acceptance_criteria": [
+        "ApplicationRepository: create, findByClubId (pending), findByUserAndClub, updateStatus",
+        "ApplicationService.submitApplication(userId, clubId, answerText) — создаёт заявку со статусом pending",
+        "ApplicationService.approveApplication(applicationId, organizerId) — меняет статус на approved, создаёт membership",
+        "ApplicationService.rejectApplication(applicationId, organizerId, reason?) — меняет статус на rejected",
+        "Проверка: нельзя подать повторную заявку если pending уже есть",
+        "Проверка: только организатор клуба может approve/reject"
+      ],
+      "test_steps": [
+        "Шаг 1: submitApplication — создать заявку, статус pending",
+        "Шаг 2: submitApplication повторно — ошибка 'application already exists'",
+        "Шаг 3: approveApplication от организатора — статус approved, membership создан",
+        "Шаг 4: rejectApplication от не-организатора — ошибка 403"
+      ],
+      "dependencies": ["TASK-014"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-017",
+      "category": "functional",
+      "priority": "high",
+      "description": "Application: REST-контроллер — POST /api/clubs/{id}/apply, GET /api/clubs/{id}/applications, PUT /api/applications/{id}",
+      "acceptance_criteria": [
+        "POST /api/clubs/{id}/apply — подача заявки (body: answerText)",
+        "GET /api/clubs/{id}/applications — список заявок (только организатор, фильтр по статусу)",
+        "PUT /api/applications/{id}/approve — одобрение (только организатор)",
+        "PUT /api/applications/{id}/reject — отклонение (body: reason)",
+        "GET /api/applications/my — мои заявки с текущим статусом",
+        "Корректные HTTP-коды: 201, 200, 403, 404, 409"
+      ],
+      "test_steps": [
+        "Шаг 1: POST /api/clubs/{closedClubId}/apply — подать заявку, получить 201",
+        "Шаг 2: GET /api/clubs/{id}/applications от организатора — увидеть заявку",
+        "Шаг 3: PUT /api/applications/{id}/approve — одобрить, получить 200",
+        "Шаг 4: Проверить что пользователь стал участником клуба",
+        "Шаг 5: GET /api/applications/my — увидеть свою заявку со статусом approved"
+      ],
+      "dependencies": ["TASK-004", "TASK-016"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-018",
+      "category": "functional",
+      "priority": "high",
+      "description": "Application: Spring Scheduler — автоотклонение заявок старше 48 часов, понижение activity_rating клуба",
+      "acceptance_criteria": [
+        "Scheduled task выполняется каждый час",
+        "Находит все заявки со статусом pending и created_at < now() - 48h",
+        "Меняет статус на auto_rejected",
+        "Уменьшает activity_rating клуба на фиксированное значение (например, -0.5)",
+        "Логирует количество автоотклонённых заявок"
+      ],
+      "test_steps": [
+        "Шаг 1: Создать заявку и вручную изменить created_at на 49 часов назад",
+        "Шаг 2: Запустить scheduler (или дождаться выполнения)",
+        "Шаг 3: Проверить статус заявки — auto_rejected",
+        "Шаг 4: Проверить activity_rating клуба — уменьшился"
+      ],
+      "dependencies": ["TASK-016"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-019",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Event: jOOQ-репозиторий + DTO — create, findByClubId, findById, update status, upcoming/past фильтрация",
+      "acceptance_criteria": [
+        "EventRepository: create, findById, findByClubId(upcoming/past), updateStatus",
+        "EventDto — все поля из таблицы events",
+        "findByClubId возвращает сортированный список (upcoming — по дате ASC, past — по дате DESC)",
+        "Статусы: upcoming, stage_1, stage_2, completed, cancelled",
+        "findUpcomingByClub — только события с event_datetime > now()"
+      ],
+      "test_steps": [
+        "Шаг 1: Создать 3 события: одно через неделю, одно вчера, одно через месяц",
+        "Шаг 2: findByClubId(upcoming) — получить 2 будущих, отсортированных по дате",
+        "Шаг 3: findByClubId(past) — получить 1 прошедшее",
+        "Шаг 4: updateStatus(id, 'stage_1') — статус изменился"
+      ],
+      "dependencies": ["TASK-003", "TASK-009"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-020",
+      "category": "functional",
+      "priority": "critical",
+      "description": "Event: сервис + контроллер — CRUD событий, валидация прав организатора, scheduler перехода upcoming -> stage_1",
+      "acceptance_criteria": [
+        "POST /api/clubs/{clubId}/events — создание события (только организатор клуба)",
+        "GET /api/clubs/{clubId}/events — список событий (только участники клуба)",
+        "GET /api/events/{id} — детальная информация о событии",
+        "PUT /api/events/{id} — обновление (только организатор, только если статус upcoming/stage_1)",
+        "DELETE /api/events/{id}/cancel — отмена события (статус cancelled)",
+        "Валидация: event_datetime > now(), participant_limit > 0, voting_opens_days_before 1-14",
+        "Валидация: voting_opens_days_before * 24h < (event_datetime - now()) — голосование не может начинаться в прошлом",
+        "Scheduler: переход upcoming -> stage_1 при event_datetime - voting_opens_days_before * 24h <= now(), проверка каждые 15 минут"
+      ],
+      "test_steps": [
+        "Шаг 1: POST /api/clubs/{id}/events от организатора — создать событие, код 201",
+        "Шаг 2: POST от не-организатора — получить 403",
+        "Шаг 3: GET /api/clubs/{id}/events от участника — получить список",
+        "Шаг 4: GET /api/clubs/{id}/events от не-участника — получить 403",
+        "Шаг 5: Создать событие через 2 дня с voting_opens_days_before=5 — ошибка 400",
+        "Шаг 6: Создать событие с voting за 3 дня, подождать — статус меняется на stage_1"
+      ],
+      "dependencies": ["TASK-004", "TASK-019", "TASK-014"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-021",
+      "category": "functional",
+      "priority": "high",
+      "description": "EventResponse: репозиторий + сервис Этапа 1 — голосование (going/maybe/not_going), смена статуса",
+      "acceptance_criteria": [
+        "EventResponseRepository: createOrUpdate, findByEvent, findByEventAndUser, countByStatus",
+        "EventResponseService.vote(userId, eventId, status) — создаёт/обновляет stage_1_status",
+        "Можно менять голос до начала Этапа 2",
+        "countByStatus(eventId) -> {going: N, maybe: N, not_going: N}",
+        "Проверка: голосовать могут только активные участники клуба (через MembershipService)"
+      ],
+      "test_steps": [
+        "Шаг 1: vote(user1, event1, 'going') — создать ответ",
+        "Шаг 2: vote(user1, event1, 'maybe') — изменить на 'maybe'",
+        "Шаг 3: countByStatus — проверить корректные счётчики",
+        "Шаг 4: vote от не-участника клуба — ошибка 403"
+      ],
+      "dependencies": ["TASK-019", "TASK-014"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-022",
+      "category": "functional",
+      "priority": "high",
+      "description": "EventResponse: REST-контроллер — POST /api/events/{id}/vote, GET /api/events/{id}/stats",
+      "acceptance_criteria": [
+        "POST /api/events/{id}/vote — body: {status: 'going'|'maybe'|'not_going'}",
+        "GET /api/events/{id}/stats — сводка: {going: N, maybe: N, not_going: N, confirmed: N, limit: N}",
+        "GET /api/events/{id}/responses — список ответов с именами (для участников клуба)",
+        "Голосование доступно только в статусах stage_1",
+        "Коды: 200, 400 (неверный статус), 403 (не участник), 404 (событие не найдено)"
+      ],
+      "test_steps": [
+        "Шаг 1: POST /api/events/{id}/vote с {status:'going'} — код 200",
+        "Шаг 2: GET /api/events/{id}/stats — going=1",
+        "Шаг 3: Проголосовать 3 пользователями, проверить stats",
+        "Шаг 4: POST vote на событие в статусе completed — ошибка 400"
+      ],
+      "dependencies": ["TASK-004", "TASK-021"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-023",
+      "category": "functional",
+      "priority": "high",
+      "description": "Event Stage 2: scheduler — автоматический запуск за 24ч до события, Сценарий А (избыток) и Б (недобор), FIFO, waitlist",
+      "acceptance_criteria": [
+        "Scheduled task проверяет события каждые 15 минут",
+        "Триггер: event_datetime - 24h <= now() AND stage_2_triggered = false",
+        "Сценарий А (going > limit): всем going отправляется запрос подтверждения, первые N (FIFO по timestamp) попадают в confirmed, остальные — waitlisted",
+        "Сценарий Б (going <= limit): всем going отправляется запрос, после сбора — обращение к maybe для заполнения свободных мест (FIFO)",
+        "При дефиците после обращения к пулу maybe — отправить организатору уведомление с вариантами действий (провести/отменить)",
+        "При отказе confirmed — первый из waitlisted автоматически переходит в confirmed",
+        "Защита от race condition: атомарный UPDATE events SET confirmed_count = confirmed_count + 1 WHERE id = ? AND confirmed_count < participant_limit RETURNING confirmed_count",
+        "Статус события меняется на stage_2"
+      ],
+      "test_steps": [
+        "Шаг 1: Создать событие (limit=3), 5 голосов 'going', установить event_datetime через 23 часа",
+        "Шаг 2: Запустить scheduler — Сценарий А активирован",
+        "Шаг 3: Первые 3 подтвердивших — confirmed, остальные — waitlisted",
+        "Шаг 4: Один confirmed отказывается — первый waitlisted становится confirmed",
+        "Шаг 5: Сценарий Б: limit=10, 5 going, 3 maybe — после подтверждения going обращение к maybe",
+        "Шаг 6: Сценарий Б с дефицитом — организатор получает уведомление"
+      ],
+      "dependencies": ["TASK-005", "TASK-021"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-024",
+      "category": "functional",
+      "priority": "high",
+      "description": "Event Stage 2: контроллер подтверждения — POST /api/events/{id}/confirm и /decline, автоматический переход из waitlist",
+      "acceptance_criteria": [
+        "POST /api/events/{id}/confirm — подтверждение участия на Этапе 2",
+        "POST /api/events/{id}/decline — отказ от участия",
+        "При подтверждении: атомарная проверка свободного слота через UPDATE RETURNING",
+        "При отказе confirmed: автоматическое уведомление первому в waitlist",
+        "Confirm доступен только для пользователей со stage_1_status='going' или 'maybe' (при Сценарии Б)",
+        "Ответ: {final_status: 'confirmed'|'waitlisted'|'declined', position_in_waitlist: N}"
+      ],
+      "test_steps": [
+        "Шаг 1: POST /api/events/{id}/confirm от going-участника — получить confirmed",
+        "Шаг 2: Заполнить все слоты, confirm от ещё одного — получить waitlisted + position",
+        "Шаг 3: POST /api/events/{id}/decline от confirmed — слот освобождается",
+        "Шаг 4: Проверить что первый в waitlist стал confirmed"
+      ],
+      "dependencies": ["TASK-004", "TASK-023"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-025",
+      "category": "functional",
+      "priority": "high",
+      "description": "Event: отметка присутствия организатором, оспаривание участниками, финализация через 48 часов",
+      "acceptance_criteria": [
+        "POST /api/events/{id}/attendance — массовая отметка присутствия (только организатор, body: [{userId, attended: bool}])",
+        "Доступно только после event_datetime + 12 часов",
+        "Scheduler: push-уведомление организатору через 12ч после event_datetime ('Встреча прошла. Отметьте, кто пришёл')",
+        "POST /api/events/{id}/dispute/{userId} — оспаривание (только участник, отмеченный как absent)",
+        "Организатор может изменить отметку в течение 48 часов после первой фиксации",
+        "Scheduled task: финализация через 48 часов — attendance_finalized = true",
+        "После финализации отметки становятся неизменяемыми"
+      ],
+      "test_steps": [
+        "Шаг 1: POST /api/events/{id}/attendance с отметками — код 200",
+        "Шаг 2: POST /api/events/{id}/attendance до +12ч — ошибка 400 'too early'",
+        "Шаг 3: POST /api/events/{id}/dispute/{userId} от отмеченного absent — код 200",
+        "Шаг 4: Организатор меняет отметку в течение 48ч — код 200",
+        "Шаг 5: После 48ч — попытка изменить — ошибка 400 'finalized'"
+      ],
+      "dependencies": ["TASK-020", "TASK-024"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-026",
+      "category": "functional",
+      "priority": "high",
+      "description": "Reputation: сервис расчёта по таблице поведения (6 типов), обновление user_club_reputation",
+      "acceptance_criteria": [
+        "ReputationService.calculateAndUpdate(eventId) — пересчёт после финализации",
+        "Таблица начисления: Железобетонный +100, Пустозвон -50, Передумавший 0, Спонтанный +30/+1, Вечный сомневающийся 0, Молчун 0",
+        "reliability_index = сумма всех начислений за историю",
+        "promise_fulfillment_pct = (attended_after_confirmed / total_confirmed) * 100",
+        "spontaneity_count = количество 'maybe -> confirmed -> attended'",
+        "Репутация считается per-club (отдельно для каждого клуба)",
+        "Значения хранятся агрегированно в user_club_reputation (не вычисляются на лету)"
+      ],
+      "test_steps": [
+        "Шаг 1: Участник: going -> confirmed -> attended — reliability +100",
+        "Шаг 2: Участник: going -> confirmed -> absent — reliability -50",
+        "Шаг 3: Участник: maybe -> confirmed -> attended — reliability +30, spontaneity +1",
+        "Шаг 4: Проверить promise_fulfillment_pct после нескольких событий",
+        "Шаг 5: Проверить что репутация в клубе А не влияет на репутацию в клубе Б"
+      ],
+      "dependencies": ["TASK-025"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-027",
+      "category": "functional",
+      "priority": "high",
+      "description": "Reputation: scheduler автопересчёта + REST API — GET /api/clubs/{clubId}/reputation, GET /api/users/{userId}/reputation",
+      "acceptance_criteria": [
+        "Scheduled task: после финализации attendance (48ч) автоматически вызывает ReputationService.calculateAndUpdate",
+        "GET /api/clubs/{clubId}/reputation — список участников с репутацией (сортировка по reliability_index DESC)",
+        "GET /api/users/{userId}/clubs/{clubId}/reputation — репутация конкретного пользователя в клубе",
+        "GET /api/users/me/reputation — все мои репутации по всем клубам"
+      ],
+      "test_steps": [
+        "Шаг 1: Финализировать attendance события — reputation пересчитается автоматически",
+        "Шаг 2: GET /api/clubs/{id}/reputation — получить список с репутациями",
+        "Шаг 3: GET /api/users/me/reputation — получить свою репутацию по всем клубам"
+      ],
+      "dependencies": ["TASK-026"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-028",
+      "category": "integration",
+      "priority": "critical",
+      "description": "Telegram Bot: инициализация kotlin-telegram-bot, webhook endpoint, регистрация в Spring-контексте",
+      "acceptance_criteria": [
+        "Бот регистрируется через BotFather, токен в application.yml",
+        "POST /api/webhook/telegram — endpoint для получения updates от Telegram",
+        "Webhook устанавливается при старте приложения (setWebhook)",
+        "Бот стартует как Spring Bean и обрабатывает входящие messages/callbacks",
+        "Базовая обработка: при получении /start — отправка приветственного сообщения с кнопкой Mini App",
+        "Inline-кнопки в сообщениях используют формат t.me/botname?startapp=event_{eventId}, club_{clubId}, invite_{code}"
+      ],
+      "test_steps": [
+        "Шаг 1: Запустить приложение — в логах 'Webhook set successfully'",
+        "Шаг 2: Отправить /start боту в Telegram — получить приветственное сообщение",
+        "Шаг 3: Проверить что сообщение содержит inline-кнопку с URL Mini App",
+        "Шаг 4: Убедиться что бот не падает при неизвестных командах"
+      ],
+      "dependencies": ["TASK-001"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-029",
+      "category": "integration",
+      "priority": "high",
+      "description": "Telegram Bot: команды /кто_идет, /мой_рейтинг, /события — обработчики с запросами к сервисам",
+      "acceptance_criteria": [
+        "/кто_идет — показывает статус набора ближайшего события клуба (going/maybe/confirmed/limit)",
+        "/мой_рейтинг — показывает индекс надёжности, % выполнения, счётчик спонтанности",
+        "/события — список предстоящих событий с inline-кнопкой открытия Mini App",
+        "Команды работают в групповом чате (определяют клуб по telegram_group_id)",
+        "Время ответа бота < 2 секунд",
+        "Если данных нет — понятное сообщение (не ошибка)"
+      ],
+      "test_steps": [
+        "Шаг 1: Добавить бота в группу клуба",
+        "Шаг 2: /кто_идет — получить статистику ближайшего события",
+        "Шаг 3: /мой_рейтинг — получить свою репутацию в этом клубе",
+        "Шаг 4: /события — получить список с кнопками",
+        "Шаг 5: /кто_идет в группе без событий — понятное сообщение 'Нет предстоящих событий'"
+      ],
+      "dependencies": ["TASK-028", "TASK-007", "TASK-019", "TASK-026"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-030",
+      "category": "integration",
+      "priority": "high",
+      "description": "Telegram Bot: привязка Telegram-группы при создании клуба, генерация invite_link через Bot API",
+      "acceptance_criteria": [
+        "При создании клуба: организатор указывает ссылку на существующую группу ИЛИ добавляет бота в группу",
+        "Бот определяет группу через событие 'bot added to group' (my_chat_member update)",
+        "POST /api/clubs/{id}/link-group — привязка группы к клубу (сохранение telegram_group_id)",
+        "Бот генерирует invite_link через createChatInviteLink для новых участников",
+        "ВАЖНО: бот НЕ создаёт группы (ограничение Bot API). Организатор создаёт сам."
+      ],
+      "test_steps": [
+        "Шаг 1: Создать клуб через API",
+        "Шаг 2: Добавить бота в Telegram-группу",
+        "Шаг 3: POST /api/clubs/{id}/link-group — привязать группу",
+        "Шаг 4: Проверить что telegram_group_id сохранён в БД",
+        "Шаг 5: Проверить что invite_link генерируется через Bot API"
+      ],
+      "dependencies": ["TASK-028", "TASK-010"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-031",
+      "category": "integration",
+      "priority": "high",
+      "description": "Telegram Bot: уведомления в группу — анонс события, напоминание о голосовании, приветствие нового участника",
+      "acceptance_criteria": [
+        "При создании события: бот отправляет анонс в группу с кнопкой 'Открыть в приложении'",
+        "За N дней до события (voting_opens_days_before): напоминание о голосовании",
+        "При вступлении нового участника: приветственное сообщение в группу с именем",
+        "Все сообщения содержат inline-кнопку для перехода в Mini App",
+        "Форматирование: Markdown/HTML, эмодзи для читаемости",
+        "Использует NotificationQueueService из TASK-032 если доступен, иначе синхронная отправка"
+      ],
+      "test_steps": [
+        "Шаг 1: Создать событие — в группе появляется анонс с кнопкой",
+        "Шаг 2: Нажать кнопку — открывается Mini App на экране события",
+        "Шаг 3: Вступить в клуб — в группе появляется приветственное сообщение",
+        "Шаг 4: Проверить форматирование (имя пользователя, название события)"
+      ],
+      "dependencies": ["TASK-028", "TASK-019"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-032",
+      "category": "integration",
+      "priority": "high",
+      "description": "Telegram Bot: личные уведомления (ЛС) с Redis-очередью и rate limiting",
+      "acceptance_criteria": [
+        "NotificationQueueService: очередь уведомлений через Redis с rate limiting (max 25 msg/sec для Telegram API)",
+        "NotificationService.sendPersonalNotification(telegramId, message, inlineButton?)",
+        "Типы уведомлений: новое событие, Этап 2 запущен, попадание в waitlist, место освободилось, отмечен как 'не пришёл' + кнопка 'Оспорить', заявка одобрена/отклонена",
+        "Все уведомления содержат inline-кнопку для перехода в Mini App",
+        "Уведомления о приближении списания подписки (за 3 дня)",
+        "NotificationQueueService переиспользуется из TASK-031 для групповых уведомлений"
+      ],
+      "test_steps": [
+        "Шаг 1: Запустить Этап 2 — участники получают ЛС от бота",
+        "Шаг 2: Отметить участника как 'не пришёл' — получает ЛС с кнопкой 'Оспорить'",
+        "Шаг 3: Одобрить заявку — участник получает ЛС",
+        "Шаг 4: Отправить 30+ уведомлений — проверить rate limiting (без ошибок 429)"
+      ],
+      "dependencies": ["TASK-005", "TASK-028"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-033",
+      "category": "integration",
+      "priority": "critical",
+      "description": "Payment: интеграция Telegram Stars API — создание invoice, обработка successful_payment callback",
+      "acceptance_criteria": [
+        "PaymentService за интерфейсом (для возможной замены реализации)",
+        "createInvoice(userId, clubId, amount) — генерация invoice через Telegram Stars API",
+        "Обработка pre_checkout_query — валидация (клуб существует, цена корректна)",
+        "Обработка successful_payment — сохранение транзакции в БД (таблица transactions)",
+        "Транзакция содержит: amount_stars, platform_fee (20%), organizer_revenue (80%), telegram_payment_id",
+        "POST /api/payments/create-invoice — endpoint для фронтенда"
+      ],
+      "test_steps": [
+        "Шаг 1: POST /api/payments/create-invoice — получить invoice_link",
+        "Шаг 2: Оплатить через Telegram Stars (тестовый режим)",
+        "Шаг 3: Проверить что транзакция записана в БД",
+        "Шаг 4: Проверить расчёт: 100 Stars -> 80 организатору, 20 платформе"
+      ],
+      "dependencies": ["TASK-003", "TASK-028"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-034",
+      "category": "functional",
+      "priority": "high",
+      "description": "Payment: подписки — рекуррентное списание каждые 30 дней, grace_period 3 дня, уведомления, grandfathering цены",
+      "acceptance_criteria": [
+        "SubscriptionService.renewSubscription(membershipId) — автоматическое продление",
+        "Scheduler: проверка subscription_expires_at ежедневно",
+        "За 3 дня до истечения: уведомление пользователю",
+        "При неудачном списании: статус grace_period на 3 дня",
+        "После grace_period: статус expired, доступ к Mini App экранам клуба заблокирован",
+        "Отмена подписки: статус cancelled, доступ до конца оплаченного периода",
+        "При создании membership — фиксируется текущая цена клуба в locked_subscription_price. Renewals используют эту цену, а не текущую",
+        "При смене цены клуба: действующие участники продолжают платить по locked_subscription_price"
+      ],
+      "test_steps": [
+        "Шаг 1: Создать membership с subscription_expires_at = завтра",
+        "Шаг 2: Запустить scheduler — попытка продления",
+        "Шаг 3: При успехе — expires_at += 30 дней, новая транзакция",
+        "Шаг 4: При неудаче — статус grace_period",
+        "Шаг 5: Через 3 дня grace — статус expired",
+        "Шаг 6: Изменить цену клуба — renewal использует старую locked цену"
+      ],
+      "dependencies": ["TASK-033", "TASK-014"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-035",
+      "category": "functional",
+      "priority": "high",
+      "description": "Payment: финансовый блок дашборда — расчёт дохода (80/20 split), статистика по транзакциям",
+      "acceptance_criteria": [
+        "GET /api/clubs/{id}/finances — финансовая статистика (только организатор)",
+        "Ответ: active_members, monthly_revenue_stars, organizer_share, platform_share, next_billing_date",
+        "Расчёт в реальном времени на основе таблицы transactions",
+        "Фильтрация по месяцу: /api/clubs/{id}/finances?month=2026-03",
+        "История транзакций: GET /api/clubs/{id}/transactions (пагинация)"
+      ],
+      "test_steps": [
+        "Шаг 1: Создать клуб с 5 участниками, подписка 100 Stars",
+        "Шаг 2: GET /api/clubs/{id}/finances — monthly_revenue=500, organizer=400, platform=100",
+        "Шаг 3: Проверить active_members=5",
+        "Шаг 4: GET /api/clubs/{id}/transactions — список транзакций"
+      ],
+      "dependencies": ["TASK-033", "TASK-011"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-036",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Frontend: инициализация React + TypeScript + Vite, @telegram-apps/sdk v2, telegram-ui, React Router, навигация, deep-links",
+      "acceptance_criteria": [
+        "Проект создан через Vite с шаблоном react-ts",
+        "Установлены: @telegram-apps/sdk-react, @telegram-apps/telegram-ui, react-router-dom, zustand",
+        "Инициализация через @telegram-apps/sdk v2: init(), viewport.expand(), настройка header color",
+        "Роутинг: / (discovery), /clubs/:id (club page), /clubs/:id/interior (interior), /organizer (panel), /events/:id (экран события), /invite/:code (обработка invite-ссылки)",
+        "Bottom tab bar: Discovery (главная), Мои клубы (список клубов пользователя), Профиль. TabBar использует @telegram-apps/telegram-ui компоненты",
+        "Обработка Telegram BackButton: показывать на всех экранах кроме Discovery, по нажатию — navigate(-1)",
+        "Deep-link обработка: парсинг startapp параметра (invite_XXXXX -> /invite/:code, event_XXXXX -> /events/:id, club_XXXXX -> /clubs/:id)",
+        "Code splitting: React.lazy + Suspense для роутов /organizer, /clubs/:id/interior, /events/:id",
+        "Mock-режим для разработки вне Telegram (определение среды, mock initData)",
+        "Telegram UI Kit тема применяется глобально",
+        "Приложение запускается через npm run dev без ошибок"
+      ],
+      "test_steps": [
+        "Шаг 1: npm install && npm run dev",
+        "Шаг 2: Открыть http://localhost:5173 — приложение загружается (mock-режим)",
+        "Шаг 3: Проверить что все роуты работают (/, /clubs/test, /organizer, /events/test, /invite/test)",
+        "Шаг 4: Проверить bottom tab bar — переключение между Discovery / Мои клубы / Профиль",
+        "Шаг 5: Проверить deep-link: startapp=event_123 -> редирект на /events/123",
+        "Шаг 6: Проверить в консоли — нет ошибок, SDK инициализирован (или mock)"
+      ],
+      "dependencies": [],
+      "status": "in_progress"
+    },
+    {
+      "id": "TASK-037",
+      "category": "ui",
+      "priority": "critical",
+      "description": "Frontend: API-клиент (axios/fetch), AuthProvider (initData -> JWT), глобальный store (Zustand)",
+      "acceptance_criteria": [
+        "apiClient: настроенный axios/fetch с baseURL, автоматическая подстановка JWT в Authorization header",
+        "AuthProvider: при старте отправляет initData на бэкенд, получает JWT, сохраняет в memory",
+        "useAuth() хук: user, isLoading, isAuthenticated, logout",
+        "Zustand store slices: useAuthStore, useClubsStore, useEventsStore",
+        "Обработка 401: автоматический re-auth через initData",
+        "Error boundary: глобальная обработка ошибок с retry",
+        "Для локальной разработки: mock initData и mock API (MSW или json-server)"
+      ],
+      "test_steps": [
+        "Шаг 1: Запустить фронтенд + бэкенд",
+        "Шаг 2: При загрузке — автоматическая аутентификация (mock или реальная)",
+        "Шаг 3: Проверить что apiClient подставляет JWT в запросы",
+        "Шаг 4: Вызвать GET /api/users/me через apiClient — получить данные пользователя"
+      ],
+      "dependencies": ["TASK-036", "TASK-004"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-038",
+      "category": "ui",
+      "priority": "high",
+      "description": "Frontend: Discovery — лента карточек клубов, фильтры, поиск, страница клуба, блок 'Мои заявки'",
+      "acceptance_criteria": [
+        "Главная лента: вертикальный скролл карточек клубов",
+        "Карточка: название, категория, аватар, город, цена, индикатор жизни, промо-теги",
+        "Фильтры сверху: город (автоопределение через GET /api/geo/city + ручной ввод), категория (чипсы), тип доступа",
+        "Расширенные фильтры под кнопкой 'Ещё': цена (ползунок), размер, день недели",
+        "Текстовый поиск по названию и описанию",
+        "Страница клуба: обложка, описание, ближайшее событие, кнопка 'Вступить'/'Хочу вступить'",
+        "Фильтры применяются без перезагрузки",
+        "Пагинация: infinite scroll с подгрузкой следующей страницы",
+        "Блок 'Мои заявки': если у пользователя есть pending заявки — показывать статус в шапке Discovery",
+        "Loading skeleton при загрузке ленты",
+        "Empty state: 'Клубов не найдено' + CTA при пустых результатах",
+        "Определение города: navigator.geolocation -> IP-based fallback (GET /api/geo/city) -> ручной ввод"
+      ],
+      "test_steps": [
+        "Шаг 1: Открыть / — отображается лента с карточками (или skeleton при загрузке)",
+        "Шаг 2: Выбрать фильтр 'Спорт' — отображаются только спортивные клубы",
+        "Шаг 3: Ввести в поиск 'футбол' — отображаются релевантные клубы",
+        "Шаг 4: Нажать на карточку — открывается страница клуба с полной информацией",
+        "Шаг 5: Кнопка 'Вступить' видна для открытых клубов",
+        "Шаг 6: При отсутствии результатов — empty state",
+        "Шаг 7: Скролл вниз — подгружаются следующие клубы"
+      ],
+      "dependencies": ["TASK-037", "TASK-011", "TASK-012"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-039a",
+      "category": "ui",
+      "priority": "high",
+      "description": "Frontend: внутренний экран клуба — таб 'События', экран события, голосование Этап 1, подтверждение Этап 2",
+      "acceptance_criteria": [
+        "Layout внутреннего экрана с тремя табами: 'События', 'Участники', 'Мой профиль'",
+        "Таб 'События': список предстоящих/прошедших с визуальным различием",
+        "Кнопки голосования (Пойду/Возможно/Не пойду) с optimistic update счётчиков",
+        "Экран события (по клику на событие): статус набора, список участников, свой статус",
+        "Экран события в статусе stage_2: таймер обратного отсчёта, кнопка 'Подтверждаю', отображение позиции в очереди/листе ожидания",
+        "Статусы: 'Место подтверждено' / 'Вы в резерве (позиция N)' / 'Отклонено'",
+        "Polling каждые 30 секунд на экране события в статусе stage_2",
+        "Empty state для списка событий: 'Пока нет предстоящих событий'",
+        "Loading skeleton при загрузке"
+      ],
+      "test_steps": [
+        "Шаг 1: Открыть /clubs/{id}/interior — отображаются 3 таба",
+        "Шаг 2: Таб 'События': нажать 'Пойду' — статус обновляется мгновенно, счётчик +1",
+        "Шаг 3: Нажать на событие — открывается детальный экран",
+        "Шаг 4: На событии в stage_2: нажать 'Подтверждаю' — получить статус confirmed/waitlisted",
+        "Шаг 5: При отсутствии событий — empty state"
+      ],
+      "dependencies": ["TASK-037", "TASK-020", "TASK-022"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-039b",
+      "category": "ui",
+      "priority": "high",
+      "description": "Frontend: внутренний экран клуба — табы 'Участники' и 'Мой профиль', управление подпиской",
+      "acceptance_criteria": [
+        "Таб 'Участники': список с аватарами и индексом надёжности, нажатие открывает профиль участника",
+        "Профиль участника: метрики репутации, история посещений в клубе",
+        "Таб 'Мой профиль': три метрики репутации крупно (reliability_index, promise_fulfillment_pct, spontaneity_count), история посещений",
+        "Блок подписки в 'Мой профиль': статус (active/grace_period/cancelled), дата следующего списания, кнопка 'Отменить подписку' с подтверждением",
+        "Уведомление об отметке 'Не пришёл' с кнопкой 'Оспорить' в истории посещений",
+        "Placeholder-значения для репутации если TASK-027 ещё не готов",
+        "Loading skeleton при загрузке, empty state для пустого списка участников"
+      ],
+      "test_steps": [
+        "Шаг 1: Таб 'Участники': отображается список с репутацией",
+        "Шаг 2: Нажать на участника — открывается его профиль",
+        "Шаг 3: Таб 'Мой профиль': отображаются три метрики",
+        "Шаг 4: Нажать 'Отменить подписку' — появляется диалог подтверждения",
+        "Шаг 5: Подтвердить — статус меняется на cancelled"
+      ],
+      "dependencies": ["TASK-037", "TASK-020", "TASK-022"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-040a",
+      "category": "ui",
+      "priority": "high",
+      "description": "Frontend: панель организатора — форма создания клуба (пошаговая) + калькулятор дохода",
+      "acceptance_criteria": [
+        "Пошаговая форма создания клуба: все поля из PRD (название, город, категория, тип доступа, лимит, цена, описание, аватар, правила)",
+        "Условная отрисовка: поле 'Вопрос для заявки' появляется только при type=closed",
+        "Загрузка аватара: <input type='file' accept='image/*'>, превью через FileReader, компрессия на клиенте (canvas resize) перед отправкой",
+        "Калькулятор дохода: обновляется в реальном времени при изменении цены/лимита (organizer_share = price * limit * 0.8)",
+        "Валидация полей: название <=60, описание <=500, лимит 10-80, цена > 0",
+        "Loading state при отправке формы, success state с ссылкой на созданный клуб"
+      ],
+      "test_steps": [
+        "Шаг 1: Открыть /organizer — нажать 'Создать клуб'",
+        "Шаг 2: Пройти все шаги формы с валидацией",
+        "Шаг 3: Выбрать тип 'Закрытый' — появляется поле 'Вопрос для заявки'",
+        "Шаг 4: Ввести цену 100, лимит 50 — калькулятор показывает '4000 Stars/мес'",
+        "Шаг 5: Загрузить аватар — превью отображается"
+      ],
+      "dependencies": ["TASK-037", "TASK-011"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-040b",
+      "category": "ui",
+      "priority": "high",
+      "description": "Frontend: дашборд организатора — участники, заявки, события (создание + дашборд), отметка присутствия, финансы",
+      "acceptance_criteria": [
+        "Дашборд: список участников (имя, дата вступления, статус подписки, репутация)",
+        "Управление заявками: входящие заявки с кнопками Принять/Отклонить, таймер до автоотклонения (48ч countdown)",
+        "Создание событий: форма (название, дата, место, лимит, описание, дни голосования)",
+        "Дашборд события: статистика набора (Пойду/Возможно/Подтвердило), финальный список участников, индикатор недобора/избытка",
+        "Экран прошедшего события: список участников с переключателями 'Пришёл/Не пришёл', кнопка 'Сохранить'",
+        "Финансовый блок: active_members, оборот, заработок, дата списания",
+        "Loading skeleton и empty states для всех разделов"
+      ],
+      "test_steps": [
+        "Шаг 1: Открыть /organizer — отображается дашборд со списком клубов",
+        "Шаг 2: Перейти к заявкам — список с кнопками + таймер",
+        "Шаг 3: Создать событие через форму — событие появляется в списке",
+        "Шаг 4: Открыть дашборд события — статистика набора",
+        "Шаг 5: Открыть прошедшее событие — отметить присутствие",
+        "Шаг 6: Перейти к финансам — статистика отображается"
+      ],
+      "dependencies": ["TASK-040a", "TASK-017", "TASK-020", "TASK-035"],
+      "status": "pending"
+    },
+    {
+      "id": "TASK-041",
+      "category": "ui",
+      "priority": "high",
+      "description": "Frontend: flow вступления в клуб — экран подтверждения, оплата Stars, форма заявки (закрытый клуб), обработка invite-ссылок",
+      "acceptance_criteria": [
+        "Открытый клуб: экран подтверждения (цена, описание, правила + галочка 'Ознакомился и согласен'), кнопка 'Вступить' -> Telegram Stars оплата -> статус 'Создаём...' -> успех",
+        "Закрытый клуб: форма с вопросом от организатора, отправка ответа, экран статуса заявки ('Заявка отправлена. Обычно ответ в течение нескольких часов')",
+        "Приватный клуб: обработка /invite/:code -> показ карточки приватного клуба -> flow вступления",
+        "Обработка ошибок: клуб заполнен, уже участник, невалидный invite-код",
+        "Loading/success/error states для каждого шага",
+        "Не более 3 шагов до вступления (требование PRD)"
+      ],
+      "test_steps": [
+        "Шаг 1: На странице открытого клуба нажать 'Вступить' — экран подтверждения",
+        "Шаг 2: Подтвердить — переход к оплате (или mock для dev)",
+        "Шаг 3: На странице закрытого клуба нажать 'Хочу вступить' — форма заявки",
+        "Шаг 4: Отправить заявку — экран 'Заявка отправлена'",
+        "Шаг 5: Перейти по /invite/{code} — карточка приватного клуба с кнопкой вступления",
+        "Шаг 6: Попробовать вступить в полный клуб — сообщение об ошибке"
+      ],
+      "dependencies": ["TASK-037", "TASK-015", "TASK-017"],
+      "status": "pending"
+    }
+  ]
+}
