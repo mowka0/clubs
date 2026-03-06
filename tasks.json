@@ -357,7 +357,7 @@
         "Шаг 5: Установить статус expired — isActiveMember возвращает false"
       ],
       "dependencies": ["TASK-003", "TASK-009"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-015",

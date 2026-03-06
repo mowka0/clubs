@@ -118,6 +118,31 @@
 
 ---
 
+## [TASK-014] Membership: jOOQ-репозиторий + MembershipService
+- **Дата:** 2026-03-06
+- **Статус:** done
+- **Что сделано:**
+  - `membership/MembershipDto.kt` — data class: id, userId, clubId, role, status, joinedAt, subscriptionExpiresAt, lockedSubscriptionPrice, createdAt, updatedAt
+  - `membership/MembershipRepository.kt` — jOOQ DSLContext репозиторий:
+    - `create(userId, clubId, role, status, lockedSubscriptionPrice)` — вставка в MEMBERSHIPS
+    - `findByUserAndClub(userId, clubId) -> MembershipDto?`
+    - `findByClub(clubId) -> List<MembershipDto>`
+    - `findActiveCountByClub(clubId) -> Int` — кол-во active участников
+    - `updateStatus(userId, clubId, status)` — смена статуса
+  - `membership/MembershipService.kt` — Spring @Service:
+    - `joinClub(userId, clubId)` — проверки: клуб существует, не участник, не заполнен; создаёт membership со status=active, lockedSubscriptionPrice из клуба
+    - `isActiveMember(userId, clubId)` — active/grace_period → true; cancelled → true если subscriptionExpiresAt > now(); expired/null → false
+    - `leaveClub(userId, clubId)` — updateStatus → cancelled
+  - `MembershipServiceTest.kt` — 14 unit-тестов через mockito-kotlin: все проходят
+  - `./gradlew build` — BUILD SUCCESSFUL
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-019 — EventRepository (deps: TASK-003 ✅, TASK-009 ✅)
+  2. TASK-015 — Membership flow REST (deps: TASK-011 ❌, TASK-014 ✅, TASK-013 ❌)
+  3. TASK-016 — Application репозиторий + сервис (dep: TASK-014 ✅)
+
+---
+
 ## [TASK-010] Club: ClubService — бизнес-логика создания клуба
 - **Дата:** 2026-03-06
 - **Статус:** done
