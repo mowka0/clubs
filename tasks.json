@@ -241,7 +241,7 @@
         "Шаг 6: Создать приватный клуб — он не появляется в findAll"
       ],
       "dependencies": ["TASK-003"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-010",

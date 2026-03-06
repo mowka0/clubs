@@ -118,6 +118,25 @@
 
 ---
 
+## [TASK-009] Club: jOOQ-репозиторий с фильтрами, поиском, CRUD
+- **Дата:** 2026-03-06
+- **Статус:** done
+- **Что сделано:**
+  - `club/ClubDtos.kt` — `ClubDto`, `CreateClubDto`, `UpdateClubDto`, `ClubFilters` data classes
+  - `club/ClubRepository.kt` — jOOQ DSLContext репозиторий:
+    - `create(dto) -> ClubDto`, `findById(id) -> ClubDto?`, `findAll(filters)`, `search(query)`, `update(id, dto)`, `softDelete(id)`, `countByOwner(ownerId)`
+    - `findAll` исключает private и inactive клубы, фильтры комбинируются по AND
+    - `search` — ILIKE по name OR description
+    - `buildFilterConditions(filters)` — internal, возвращает `List<Condition>`
+  - `ClubRepositoryTest.kt` — 11 unit-тестов для filter logic (без DB), все проходят
+  - `./gradlew build` — BUILD SUCCESSFUL
+- **Использованные jOOQ классы:** `CLUBS`, `ClubCategory`, `ClubAccessType` из `com.clubs.generated.jooq`
+- **Следующие шаги:**
+  1. TASK-010 — ClubService (валидация, лимит 10 клубов, аватар S3, калькулятор дохода, auto-membership organizer)
+  2. TASK-007 — добавить UserService как wrapper для UserRepository
+
+---
+
 ## Инициализация проекта
 - **Дата:** 2026-03-05
 - **Статус:** tasks.json сгенерирован
