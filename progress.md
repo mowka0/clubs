@@ -143,6 +143,38 @@
 
 ---
 
+## [TASK-020] Event: сервис + контроллер + scheduler
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `event/EventService.kt` — Spring @Service:
+    - `createEvent(clubId, userId, ...)` — проверка организатора, валидация полей, создаёт событие через EventRepository
+    - `updateEvent(eventId, userId, dto)` — проверка организатора, проверка статуса (upcoming/stage_1), частичное обновление
+    - `cancelEvent(eventId, userId)` — проверка организатора, статус → cancelled
+    - `getEvent(eventId)` — детальная информация
+    - `getClubEvents(clubId, userId, upcoming)` — список событий, только для активных участников
+    - `requireOrganizer()` — private: проверяет membership.role == organizer через MembershipRepository
+    - `requireActiveMember()` — private: проверяет status active/grace_period
+    - `validateEventFields()` — private: event_datetime > now(), participantLimit > 0, votingDaysBefore 1-14, voting period не в прошлом
+  - `event/EventController.kt` — Spring @RestController:
+    - `POST /api/clubs/{clubId}/events` → 201: создание события (только организатор)
+    - `GET /api/clubs/{clubId}/events?upcoming=true` → 200: список событий (только участники)
+    - `GET /api/events/{id}` → 200/404: детальная информация
+    - `PUT /api/events/{id}` → 200/403/400/404: обновление (только организатор, только upcoming/stage_1)
+    - `DELETE /api/events/{id}/cancel` → 204/403/404: отмена
+  - `event/EventScheduler.kt` — Spring @Component со @Scheduled:
+    - `transitionUpcomingToStage1()` — каждые 15 минут (`fixedDelay = 15 * 60 * 1000L`)
+    - Находит все upcoming события где `event_datetime - voting_opens_days_before * 24h <= now()`
+    - Меняет статус на stage_1, логирует количество переходов
+  - `./gradlew build` — BUILD SUCCESSFUL, все тесты проходят
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-021 — EventResponse: репозиторий + сервис голосования (deps: TASK-019 ✅, TASK-014 ✅)
+  2. TASK-008 — User REST-контроллер (PUT /api/users/me, GET /api/geo/city) — deps: TASK-004 in_progress, TASK-007 ✅
+  3. TASK-013 — Invite-ссылки для приватных клубов — deps: TASK-010 ✅
+
+---
+
 ## [TASK-019] Event: jOOQ-репозиторий + DTO
 - **Дата:** 2026-03-06
 - **Статус:** done

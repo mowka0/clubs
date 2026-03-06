@@ -496,7 +496,7 @@
         "Шаг 6: Создать событие с voting за 3 дня, подождать — статус меняется на stage_1"
       ],
       "dependencies": ["TASK-004", "TASK-019", "TASK-014"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-021",
