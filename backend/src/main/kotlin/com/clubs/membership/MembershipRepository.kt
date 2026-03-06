@@ -1,8 +1,11 @@
 package com.clubs.membership
 
+import com.clubs.club.ClubMemberDto
 import com.clubs.generated.jooq.enums.MembershipRole
 import com.clubs.generated.jooq.enums.MembershipStatus
 import com.clubs.generated.jooq.tables.references.MEMBERSHIPS
+import com.clubs.generated.jooq.tables.references.USERS
+import com.clubs.generated.jooq.tables.references.USER_CLUB_REPUTATION
 import org.jooq.DSLContext
 import org.springframework.stereotype.Repository
 import java.time.OffsetDateTime
@@ -64,6 +67,41 @@ class MembershipRepository(private val dsl: DSLContext) {
             .where(MEMBERSHIPS.USER_ID.eq(userId))
             .and(MEMBERSHIPS.CLUB_ID.eq(clubId))
             .execute()
+    }
+
+    fun findMembersWithUsers(clubId: UUID): List<ClubMemberDto> {
+        return dsl.select(
+            MEMBERSHIPS.USER_ID,
+            MEMBERSHIPS.ROLE,
+            MEMBERSHIPS.JOINED_AT,
+            USERS.USERNAME,
+            USERS.FIRST_NAME,
+            USERS.LAST_NAME,
+            USERS.AVATAR_URL,
+            USER_CLUB_REPUTATION.RELIABILITY_INDEX
+        )
+            .from(MEMBERSHIPS)
+            .join(USERS).on(USERS.ID.eq(MEMBERSHIPS.USER_ID))
+            .leftJoin(USER_CLUB_REPUTATION).on(
+                USER_CLUB_REPUTATION.USER_ID.eq(MEMBERSHIPS.USER_ID)
+                    .and(USER_CLUB_REPUTATION.CLUB_ID.eq(MEMBERSHIPS.CLUB_ID))
+            )
+            .where(MEMBERSHIPS.CLUB_ID.eq(clubId))
+            .and(MEMBERSHIPS.STATUS.`in`(MembershipStatus.active, MembershipStatus.grace_period))
+            .orderBy(MEMBERSHIPS.JOINED_AT.asc())
+            .fetch()
+            .map { record ->
+                ClubMemberDto(
+                    userId = record.get(MEMBERSHIPS.USER_ID)!!,
+                    username = record.get(USERS.USERNAME),
+                    firstName = record.get(USERS.FIRST_NAME),
+                    lastName = record.get(USERS.LAST_NAME),
+                    avatarUrl = record.get(USERS.AVATAR_URL),
+                    role = record.get(MEMBERSHIPS.ROLE)!!.literal,
+                    joinedAt = record.get(MEMBERSHIPS.JOINED_AT)!!,
+                    reliabilityIndex = record.get(USER_CLUB_REPUTATION.RELIABILITY_INDEX) ?: 0
+                )
+            }
     }
 
     private fun org.jooq.Record.toDto(): MembershipDto = MembershipDto(

@@ -71,3 +71,21 @@ data class ClubFilters(
     val memberLimitMax: Int? = null,
     val search: String? = null
 )
+
+data class ClubMemberDto(
+    val userId: UUID,
+    val username: String?,
+    val firstName: String?,
+    val lastName: String?,
+    val avatarUrl: String?,
+    val role: String,
+    val joinedAt: OffsetDateTime,
+    val reliabilityIndex: Int = 0
+)
+
+data class PagedClubsResponse(
+    val content: List<ClubDto>,
+    val page: Int,
+    val size: Int,
+    val totalElements: Long
+)

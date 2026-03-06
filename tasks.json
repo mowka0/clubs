@@ -291,7 +291,7 @@
         "Шаг 7: GET /api/clubs/{id}/members от не-участника — 403"
       ],
       "dependencies": ["TASK-004", "TASK-010"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-012",

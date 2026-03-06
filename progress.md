@@ -143,6 +143,29 @@
 
 ---
 
+## [TASK-011] Club: REST-контроллер — CRUD + каталог + список участников
+- **Дата:** 2026-03-06
+- **Статус:** done
+- **Что сделано:**
+  - `club/ClubController.kt` — Spring @RestController:
+    - `POST /api/clubs` → 201: создание клуба через ClubService (только авторизованные)
+    - `GET /api/clubs` → 200: каталог с фильтрами (city, category, accessType, priceMin, priceMax, sizeMin, sizeMax, search), пагинация (page, size), сортировка (newest, price_asc, price_desc), ответ `PagedClubsResponse`
+    - `GET /api/clubs/{id}` → 200/404: детальная карточка клуба
+    - `PUT /api/clubs/{id}` → 200/403/404: обновление (только владелец)
+    - `DELETE /api/clubs/{id}` → 204/403/404: деактивация soft-delete (только владелец)
+    - `GET /api/clubs/{id}/members` → 200/403/404: список участников с именем, аватаром, joined_at, reliabilityIndex (только для участников)
+  - `club/ClubDtos.kt` — добавлены `ClubMemberDto` (userId, username, firstName, lastName, avatarUrl, role, joinedAt, reliabilityIndex) и `PagedClubsResponse`
+  - `club/ClubRepository.kt` — `findAll` обновлён: поддержка пагинации (limit/offset) и сортировки; добавлен `countAll` для total count
+  - `membership/MembershipRepository.kt` — добавлен `findMembersWithUsers(clubId)`: JOIN MEMBERSHIPS + USERS + LEFT JOIN USER_CLUB_REPUTATION
+  - `./gradlew build` — BUILD SUCCESSFUL, все тесты проходят
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-008 — User REST-контроллер (PUT /api/users/me, GET /api/geo/city) — deps: TASK-004 (in_progress), TASK-007 (done)
+  2. TASK-015 — Membership flow REST (POST /join, /leave, invite join) — deps: TASK-011 ✅, TASK-014 ✅, TASK-013 ❌
+  3. TASK-013 — Invite-ссылки для приватных клубов — deps: TASK-010 ✅
+
+---
+
 ## [TASK-010] Club: ClubService — бизнес-логика создания клуба
 - **Дата:** 2026-03-06
 - **Статус:** done

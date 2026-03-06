@@ -5,6 +5,7 @@ import com.clubs.generated.jooq.enums.ClubCategory
 import com.clubs.generated.jooq.tables.references.CLUBS
 import org.jooq.Condition
 import org.jooq.DSLContext
+import org.jooq.SortField
 import org.jooq.impl.DSL
 import org.springframework.stereotype.Repository
 import java.time.OffsetDateTime
@@ -43,14 +44,34 @@ class ClubRepository(private val dsl: DSLContext) {
             ?.toDto()
     }
 
-    fun findAll(filters: ClubFilters): List<ClubDto> {
+    fun findAll(filters: ClubFilters, page: Int = 0, size: Int = 20, sort: String = "newest"): List<ClubDto> {
         val conditions = buildFilterConditions(filters)
+        val orderBy = buildSortOrder(sort)
         return dsl.selectFrom(CLUBS)
             .where(CLUBS.IS_ACTIVE.isTrue)
             .and(CLUBS.ACCESS_TYPE.ne(ClubAccessType.`private`))
             .and(DSL.and(conditions))
+            .orderBy(orderBy)
+            .limit(size)
+            .offset(page * size)
             .fetch()
             .map { it.toDto() }
+    }
+
+    fun countAll(filters: ClubFilters): Long {
+        val conditions = buildFilterConditions(filters)
+        return dsl.fetchCount(
+            dsl.selectFrom(CLUBS)
+                .where(CLUBS.IS_ACTIVE.isTrue)
+                .and(CLUBS.ACCESS_TYPE.ne(ClubAccessType.`private`))
+                .and(DSL.and(conditions))
+        ).toLong()
+    }
+
+    private fun buildSortOrder(sort: String): SortField<*> = when (sort) {
+        "price_asc" -> CLUBS.SUBSCRIPTION_PRICE.asc()
+        "price_desc" -> CLUBS.SUBSCRIPTION_PRICE.desc()
+        else -> CLUBS.CREATED_AT.desc()
     }
 
     fun search(query: String): List<ClubDto> {
