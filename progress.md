@@ -59,28 +59,28 @@
 
 ## [TASK-004] Аутентификация: Telegram initData, JWT, Security, RateLimit, GlobalExceptionHandler
 - **Дата:** 2026-03-06
-- **Статус:** in_progress (код написан, требуется запуск bootstrap для сборки и тестирования)
+- **Статус:** in_progress (код реализован, unit-тесты проходят, требуется интеграционное тестирование)
 - **Что сделано:**
   - `auth/TelegramInitDataValidator.kt` — HMAC-SHA256 валидация Telegram initData (key=HMAC("WebAppData", botToken), compare data_check_string)
   - `auth/JwtService.kt` — генерация/валидация JWT (jjwt 0.12.6): user_id (subject), telegram_id (claim), iat, exp (24ч)
   - `auth/AuthDtos.kt` — AuthRequest, AuthResponse, AuthUserDto
-  - `auth/UserRepository.kt` — jOOQ DSLContext (без codegen): findByTelegramId, createOrUpdate, findById
+  - `auth/UserRepository.kt` — jOOQ DSLContext: findByTelegramId, createOrUpdate, findById
   - `auth/AuthController.kt` — POST /api/auth/telegram: валидация initData → upsert user → JWT
   - `auth/JwtAuthenticationFilter.kt` — OncePerRequestFilter: извлекает Bearer токен, создаёт UsernamePasswordAuthenticationToken
   - `auth/UserController.kt` — GET /api/users/me, GET /api/users/{id}
   - `config/RateLimitFilter.kt` — bucket4j 8.10.1: 100 req/min per IP глобально, 30 req/min per user на mutation (POST/PUT/DELETE/PATCH)
   - `config/GlobalExceptionHandler.kt` — @RestControllerAdvice: NotFoundException(404), AccessDeniedException(403), ValidationException(400), ConflictException(409), generic 500
-  - `config/SecurityConfig.kt` — обновлён: добавлены JwtAuthenticationFilter и RateLimitFilter, HttpStatusEntryPoint(401)
+  - `config/SecurityConfig.kt` — JwtAuthenticationFilter и RateLimitFilter, HttpStatusEntryPoint(401)
+  - **Unit-тесты**: `JwtServiceTest.kt` (8 тестов), `TelegramInitDataValidatorTest.kt` (6 тестов), `GlobalExceptionHandlerTest.kt` (6 тестов) — все 23 теста проходят
+  - `./gradlew build` — BUILD SUCCESSFUL
+  - Исправлен баг в тесте: `claims["telegram_id", Long::class.java]` → `(claims["telegram_id"] as? Number)?.toLong()` (JJWT хранит маленькие Long как Integer)
 - **Проблемы:**
-  - Не удалось запустить сборку — `gradle-wrapper.jar` отсутствует, `chmod` и `curl` требуют ручного одобрения
-  - Требуется bootstrap: `bash setup.sh` → `docker-compose up -d` → `cd backend && ./gradlew build`
+  - Интеграционные test_steps (end-to-end с запущенным сервером) требуют `docker-compose up` + `./gradlew bootRun`
 - **Следующие шаги:**
-  1. Запустить `bash setup.sh` (утвердить команды chmod, curl, git init)
-  2. `docker-compose up -d`
-  3. `cd backend && ./gradlew build` — убедиться в успешной сборке
-  4. `./gradlew test` — запустить тесты
-  5. После успешного прохождения тестов пометить TASK-004 как done
-  6. При готовности TASK-003 (jOOQ codegen): UserRepository можно рефакторить на сгенерированные классы
+  1. `docker-compose up -d` + `cd backend && ./gradlew bootRun`
+  2. Выполнить интеграционные test_steps (curl к /api/auth/telegram, /api/users/me, rate limiting)
+  3. После подтверждения — пометить TASK-004 как done
+  4. Перейти к TASK-007 (UserRepository с jOOQ codegen) или TASK-009 (ClubRepository)
 
 ---
 

@@ -48,6 +48,6 @@ class JwtService(
     }
 
     fun getTelegramIdFromToken(token: String): Long? {
-        return validateToken(token)?.get("telegram_id", Long::class.java)
+        return (validateToken(token)?.get("telegram_id") as? Number)?.toLong()
     }
 }
