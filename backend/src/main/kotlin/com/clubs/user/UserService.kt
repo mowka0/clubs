@@ -20,4 +20,8 @@ class UserService(private val userRepository: UserRepository) {
     fun findById(id: UUID): UserDto? = userRepository.findById(id)
 
     fun getById(id: UUID): UserDto = findById(id) ?: throw NotFoundException("User not found: $id")
+
+    fun updateProfile(id: UUID, dto: UpdateUserDto): UserDto {
+        return userRepository.updateProfile(id, dto) ?: throw NotFoundException("User not found: $id")
+    }
 }

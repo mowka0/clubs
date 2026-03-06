@@ -75,6 +75,17 @@ class UserRepository(private val dsl: DSLContext) {
             ?.toDto()
     }
 
+    fun updateProfile(id: UUID, dto: UpdateUserDto): UserDto? {
+        val now = OffsetDateTime.now()
+        var update = dsl.update(USERS).set(USERS.UPDATED_AT, now)
+        if (dto.city != null) update = update.set(USERS.CITY, dto.city)
+        if (dto.firstName != null) update = update.set(USERS.FIRST_NAME, dto.firstName)
+        if (dto.lastName != null) update = update.set(USERS.LAST_NAME, dto.lastName)
+        if (dto.avatarUrl != null) update = update.set(USERS.AVATAR_URL, dto.avatarUrl)
+        update.where(USERS.ID.eq(id)).execute()
+        return findById(id)
+    }
+
     private fun Record.toDto(): UserDto = UserDto(
         id = get(USERS.ID)!!,
         telegramId = get(USERS.TELEGRAM_ID)!!,

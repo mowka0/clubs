@@ -215,7 +215,7 @@
         "Шаг 6: GET /api/geo/city — получить {city: '...'} на основе IP"
       ],
       "dependencies": ["TASK-004", "TASK-007"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-009",

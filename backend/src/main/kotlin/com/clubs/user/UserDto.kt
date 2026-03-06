@@ -14,3 +14,10 @@ data class UserDto(
     val createdAt: OffsetDateTime,
     val updatedAt: OffsetDateTime
 )
+
+data class UpdateUserDto(
+    val city: String?,
+    val firstName: String?,
+    val lastName: String?,
+    val avatarUrl: String?
+)

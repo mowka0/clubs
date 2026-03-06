@@ -143,6 +143,25 @@
 
 ---
 
+## [TASK-008] User: REST-контроллер — PUT /api/users/me, GET /api/geo/city
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `user/UserDto.kt` — добавлен `UpdateUserDto(city, firstName, lastName, avatarUrl)`
+  - `user/UserRepository.kt` — добавлен `updateProfile(id, dto)`: частичное обновление (только непустые поля), возвращает обновлённый `UserDto?`
+  - `user/UserService.kt` — добавлен `updateProfile(id, dto)`: вызывает репозиторий, бросает NotFoundException если пользователь не найден
+  - `auth/UserController.kt` — добавлен `PUT /api/users/me`: извлекает userId из JWT, вызывает `updateProfile`
+  - `user/GeoController.kt` — `GET /api/geo/city`: определяет IP из `X-Forwarded-For` или `remoteAddr`, запрашивает `ip-api.com/json/{ip}`, возвращает `{city: "..."}`; для локальных IP (127.0.0.1, 192.168.x, 10.x) возвращает `{city: null}`; ошибки логируются, не бросают исключений
+  - `./gradlew build` — BUILD SUCCESSFUL
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-013 — Invite-ссылки для приватных клубов (deps: TASK-010 ✅)
+  2. TASK-015 — Membership flow REST (deps: TASK-011 ✅, TASK-014 ✅, TASK-013 ❌)
+  3. TASK-016 — Application репозиторий + сервис (dep: TASK-014 ✅)
+  4. TASK-021 — EventResponse репозиторий + сервис (deps: TASK-019 ✅, TASK-014 ✅)
+
+---
+
 ## [TASK-020] Event: сервис + контроллер + scheduler
 - **Дата:** 2026-03-07
 - **Статус:** done
