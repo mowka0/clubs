@@ -470,7 +470,7 @@
         "Шаг 4: updateStatus(id, 'stage_1') — статус изменился"
       ],
       "dependencies": ["TASK-003", "TASK-009"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-020",

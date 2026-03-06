@@ -143,6 +143,28 @@
 
 ---
 
+## [TASK-019] Event: jOOQ-репозиторий + DTO
+- **Дата:** 2026-03-06
+- **Статус:** done
+- **Что сделано:**
+  - `event/EventDto.kt` — data classes: `EventDto` (все поля таблицы events), `CreateEventDto`, `UpdateEventDto`
+  - `event/EventRepository.kt` — Spring @Repository с jOOQ DSLContext:
+    - `create(dto: CreateEventDto) -> EventDto` — вставка с gen_random_uuid
+    - `findById(id: UUID) -> EventDto?`
+    - `findByClubId(clubId, upcoming: Boolean) -> List<EventDto>` — upcoming: ASC по event_datetime, past: DESC
+    - `findUpcomingByClub(clubId)` — алиас для `findByClubId(upcoming=true)`
+    - `updateStatus(id, EventStatus)` — смена статуса события
+    - `update(id, UpdateEventDto)` — частичное обновление
+    - `toDto()` — private extension function для маппинга jOOQ Record → EventDto
+  - `EventRepositoryTest.kt` — 4 unit-теста: поля EventDto, дефолты CreateEventDto, null-поля UpdateEventDto, частичный UpdateEventDto
+  - `./gradlew build` — BUILD SUCCESSFUL, все тесты проходят
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-020 — Event сервис + контроллер (deps: TASK-004 in_progress, TASK-019 ✅, TASK-014 ✅)
+  2. TASK-008 — User REST (PUT /api/users/me, GET /api/geo/city) — deps: TASK-004, TASK-007
+
+---
+
 ## [TASK-011] Club: REST-контроллер — CRUD + каталог + список участников
 - **Дата:** 2026-03-06
 - **Статус:** done
