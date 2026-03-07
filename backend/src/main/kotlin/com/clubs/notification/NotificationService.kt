@@ -108,6 +108,45 @@ class NotificationService(
         )
     }
 
+    // ─── Group (chat) notifications ───────────────────────────────────────────
+
+    fun notifyGroupEventCreated(chatId: Long, eventTitle: String, eventId: UUID, eventDateFormatted: String, location: String?) {
+        val locationLine = if (location != null) "\n📍 $location" else ""
+        val text = "📣 <b>Новое событие!</b>\n\n" +
+            "<b>$eventTitle</b>\n" +
+            "📅 $eventDateFormatted$locationLine\n\n" +
+            "Проголосуйте в приложении, чтобы записаться."
+        sendGroupNotification(
+            chatId = chatId,
+            text = text,
+            buttonText = "Открыть событие",
+            buttonUrl = buildDeepLink("event_$eventId")
+        )
+    }
+
+    fun notifyGroupVotingOpened(chatId: Long, eventTitle: String, eventId: UUID, eventDateFormatted: String) {
+        val text = "🗳 <b>Началось голосование!</b>\n\n" +
+            "Событие: <b>$eventTitle</b>\n" +
+            "📅 $eventDateFormatted\n\n" +
+            "Отметьтесь: пойдёте или нет?"
+        sendGroupNotification(
+            chatId = chatId,
+            text = text,
+            buttonText = "Проголосовать",
+            buttonUrl = buildDeepLink("event_$eventId")
+        )
+    }
+
+    fun notifyGroupNewMember(chatId: Long, firstName: String, clubId: UUID) {
+        val text = "👋 <b>$firstName</b> только что вступил в клуб. Добро пожаловать!"
+        sendGroupNotification(
+            chatId = chatId,
+            text = text,
+            buttonText = "Открыть клуб",
+            buttonUrl = buildDeepLink("club_$clubId")
+        )
+    }
+
     // ─── Subscription notifications ───────────────────────────────────────────
 
     fun notifySubscriptionExpiringSoon(telegramId: Long, clubName: String, clubId: UUID, daysLeft: Int) {

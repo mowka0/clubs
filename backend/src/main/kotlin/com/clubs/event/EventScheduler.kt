@@ -1,5 +1,6 @@
 package com.clubs.event
 
+import com.clubs.club.ClubRepository
 import com.clubs.generated.jooq.enums.EventStatus
 import com.clubs.generated.jooq.enums.FinalStatus
 import com.clubs.generated.jooq.tables.references.EVENTS
@@ -11,6 +12,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 
 @Component
 class EventScheduler(
@@ -19,10 +21,12 @@ class EventScheduler(
     private val eventResponseRepository: EventResponseRepository,
     private val reputationService: ReputationService,
     private val userService: UserService,
-    private val notificationService: NotificationService
+    private val notificationService: NotificationService,
+    private val clubRepository: ClubRepository
 ) {
 
     private val log = LoggerFactory.getLogger(EventScheduler::class.java)
+    private val dateFormatter = DateTimeFormatter.ofPattern("d MMM HH:mm")
 
     /**
      * Every 15 minutes: transition events from upcoming -> stage_1
@@ -47,7 +51,24 @@ class EventScheduler(
 
         eventsToTransition.forEach { record ->
             val eventId = record.get(EVENTS.ID)!!
+            val clubId = record.get(EVENTS.CLUB_ID)!!
+            val eventTitle = record.get(EVENTS.TITLE) ?: ""
+            val eventDatetime = record.get(EVENTS.EVENT_DATETIME)!!
             eventRepository.updateStatus(eventId, EventStatus.stage_1)
+
+            // Notify Telegram group that voting has opened
+            clubRepository.findById(clubId)?.telegramGroupId?.let { chatId ->
+                try {
+                    notificationService.notifyGroupVotingOpened(
+                        chatId = chatId,
+                        eventTitle = eventTitle,
+                        eventId = eventId,
+                        eventDateFormatted = eventDatetime.format(dateFormatter)
+                    )
+                } catch (e: Exception) {
+                    log.warn("Failed to send voting-opened notification for event $eventId: ${e.message}")
+                }
+            }
         }
 
         log.info("Transitioned ${eventsToTransition.size} event(s) from upcoming to stage_1")

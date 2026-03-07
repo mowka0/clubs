@@ -153,4 +153,56 @@ class NotificationServiceTest {
         val link = notificationService.buildDeepLink("event_abc123")
         assert(link == "$miniAppUrl?startapp=event_abc123")
     }
+
+    @Test
+    fun `notifyGroupEventCreated sends group announcement with event deep-link`() {
+        val chatId = -100987654L
+        notificationService.notifyGroupEventCreated(chatId, "Футбол", eventId, "15 мар 18:00", "Парк")
+
+        verify(notificationQueueService).enqueue(
+            eq(chatId),
+            argThat { contains("Футбол") && contains("Новое событие") && contains("Парк") },
+            eq("Открыть событие"),
+            eq("$miniAppUrl?startapp=event_$eventId")
+        )
+    }
+
+    @Test
+    fun `notifyGroupEventCreated without location omits location line`() {
+        val chatId = -100987654L
+        notificationService.notifyGroupEventCreated(chatId, "Кино", eventId, "20 мар 19:00", null)
+
+        verify(notificationQueueService).enqueue(
+            eq(chatId),
+            argThat { contains("Кино") && !contains("📍") },
+            eq("Открыть событие"),
+            any()
+        )
+    }
+
+    @Test
+    fun `notifyGroupVotingOpened sends voting reminder with event deep-link`() {
+        val chatId = -100987654L
+        notificationService.notifyGroupVotingOpened(chatId, "Марафон", eventId, "25 мар 09:00")
+
+        verify(notificationQueueService).enqueue(
+            eq(chatId),
+            argThat { contains("Марафон") && contains("голосование") },
+            eq("Проголосовать"),
+            eq("$miniAppUrl?startapp=event_$eventId")
+        )
+    }
+
+    @Test
+    fun `notifyGroupNewMember sends welcome with club deep-link`() {
+        val chatId = -100987654L
+        notificationService.notifyGroupNewMember(chatId, "Иван", clubId)
+
+        verify(notificationQueueService).enqueue(
+            eq(chatId),
+            argThat { contains("Иван") && contains("вступил") },
+            eq("Открыть клуб"),
+            eq("$miniAppUrl?startapp=club_$clubId")
+        )
+    }
 }

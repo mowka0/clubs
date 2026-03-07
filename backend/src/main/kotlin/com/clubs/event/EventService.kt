@@ -6,17 +6,23 @@ import com.clubs.generated.jooq.enums.EventStatus
 import com.clubs.generated.jooq.enums.MembershipRole
 import com.clubs.membership.MembershipRepository
 import com.clubs.club.ClubRepository
+import com.clubs.notification.NotificationService
+import org.slf4j.LoggerFactory
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.stereotype.Service
 import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 @Service
 class EventService(
     private val eventRepository: EventRepository,
     private val clubRepository: ClubRepository,
-    private val membershipRepository: MembershipRepository
+    private val membershipRepository: MembershipRepository,
+    private val notificationService: NotificationService
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+    private val dateFormatter = DateTimeFormatter.ofPattern("d MMM HH:mm")
 
     fun createEvent(
         clubId: UUID,
@@ -32,7 +38,7 @@ class EventService(
         requireOrganizer(userId, clubId)
         validateEventFields(eventDatetime, participantLimit, votingOpensDaysBefore)
 
-        return eventRepository.create(
+        val event = eventRepository.create(
             CreateEventDto(
                 clubId = clubId,
                 title = title,
@@ -43,6 +49,24 @@ class EventService(
                 votingOpensDaysBefore = votingOpensDaysBefore
             )
         )
+
+        // Notify Telegram group if linked
+        val club = clubRepository.findById(clubId)
+        club?.telegramGroupId?.let { chatId ->
+            try {
+                notificationService.notifyGroupEventCreated(
+                    chatId = chatId,
+                    eventTitle = event.title,
+                    eventId = event.id,
+                    eventDateFormatted = event.eventDatetime.format(dateFormatter),
+                    location = event.location
+                )
+            } catch (e: Exception) {
+                log.warn("Failed to send group event announcement for event ${event.id}: ${e.message}")
+            }
+        }
+
+        return event
     }
 
     fun updateEvent(

@@ -1,5 +1,6 @@
 package com.clubs.event
 
+import com.clubs.club.ClubRepository
 import com.clubs.generated.jooq.enums.FinalStatus
 import com.clubs.notification.NotificationService
 import com.clubs.reputation.ReputationService
@@ -20,6 +21,7 @@ class EventStage2SchedulerTest {
     private lateinit var reputationService: ReputationService
     private lateinit var userService: UserService
     private lateinit var notificationService: NotificationService
+    private lateinit var clubRepository: ClubRepository
     private lateinit var scheduler: EventScheduler
 
     private val clubId = UUID.randomUUID()
@@ -32,9 +34,10 @@ class EventStage2SchedulerTest {
         reputationService = mock()
         userService = mock()
         notificationService = mock()
+        clubRepository = mock()
         // Default: findById returns null so notifications are silently skipped
         whenever(userService.findById(any())).thenReturn(null)
-        scheduler = EventScheduler(dsl, eventRepository, eventResponseRepository, reputationService, userService, notificationService)
+        scheduler = EventScheduler(dsl, eventRepository, eventResponseRepository, reputationService, userService, notificationService, clubRepository)
     }
 
     private fun makeEvent(limit: Int): EventDto = EventDto(

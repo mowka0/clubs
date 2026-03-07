@@ -527,6 +527,40 @@
 
 ---
 
+## [TASK-031] Telegram Bot: уведомления в группу — анонс события, голосование, приветствие
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `notification/NotificationService.kt` — добавлены 3 метода групповых уведомлений:
+    - `notifyGroupEventCreated(chatId, eventTitle, eventId, eventDateFormatted, location?)` — анонс нового события с эмодзи 📣, местом (если есть) и кнопкой «Открыть событие»
+    - `notifyGroupVotingOpened(chatId, eventTitle, eventId, eventDateFormatted)` — напоминание о начале голосования 🗳 с кнопкой «Проголосовать»
+    - `notifyGroupNewMember(chatId, firstName, clubId)` — приветствие нового участника 👋 с кнопкой «Открыть клуб»
+    - Все методы используют `sendGroupNotification()` → Redis-очередь (NotificationQueueService) с rate limiting
+  - `event/EventService.kt` — добавлен `NotificationService` в конструктор:
+    - После `eventRepository.create()`: если `club.telegramGroupId != null` — вызов `notifyGroupEventCreated`
+    - Ошибки уведомления оборачиваются в try/catch с warn-логом (не блокируют создание события)
+    - Добавлен `DateTimeFormatter` для форматирования даты события (формат: «d MMM HH:mm»)
+  - `event/EventScheduler.kt` — добавлен `ClubRepository` в конструктор:
+    - В `transitionUpcomingToStage1()`: при каждом переходе upcoming→stage_1 вызывает `notifyGroupVotingOpened` для группы клуба (если привязана)
+    - Ошибки оборачиваются в try/catch с warn-логом
+  - `membership/MembershipController.kt` — добавлены `NotificationService` + `UserService` в конструктор:
+    - В `joinClub()` и `joinByInvite()`: после создания membership, если клуб имеет `telegramGroupId`, получает `firstName` пользователя через `userService.findById()` и вызывает `notifyGroupNewMember`
+    - Fallback: если firstName null → username → «Новый участник»
+  - **Обновлены тесты:**
+    - `EventStage2SchedulerTest.kt` — добавлен mock `clubRepository` в setUp (required after constructor change)
+    - `NotificationServiceTest.kt` — добавлены 4 новых теста: notifyGroupEventCreated (с локацией), notifyGroupEventCreated (без локации), notifyGroupVotingOpened, notifyGroupNewMember
+  - `./gradlew build --rerun-tasks` — BUILD SUCCESSFUL, все тесты проходят
+- **Архитектурные решения:**
+  - Все уведомления в группу проходят через `NotificationQueueService` (Redis FIFO, rate limit 25/sec) — не синхронные, не блокируют основной поток
+  - Graceful degradation: если club.telegramGroupId = null — уведомление просто пропускается
+  - Форматирование HTML (не MarkdownV2) — совместимо с `parse_mode=HTML` в TelegramApiClient
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-034 — Подписки, рекуррентное списание (deps: TASK-033 ✅, TASK-014 ✅)
+  2. TASK-035 — Финансовый дашборд (deps: TASK-033 ✅, TASK-011 ✅)
+
+---
+
 ## [TASK-032] Telegram Bot: личные уведомления с Redis-очередью и rate limiting
 - **Дата:** 2026-03-07
 - **Статус:** done
