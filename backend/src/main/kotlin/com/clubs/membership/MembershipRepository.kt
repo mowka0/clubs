@@ -69,6 +69,57 @@ class MembershipRepository(private val dsl: DSLContext) {
             .execute()
     }
 
+    fun findById(id: UUID): MembershipDto? {
+        return dsl.selectFrom(MEMBERSHIPS)
+            .where(MEMBERSHIPS.ID.eq(id))
+            .fetchOne()
+            ?.toDto()
+    }
+
+    fun findActiveExpiringSoon(cutoff: OffsetDateTime): List<MembershipDto> {
+        return dsl.selectFrom(MEMBERSHIPS)
+            .where(MEMBERSHIPS.STATUS.eq(MembershipStatus.active))
+            .and(MEMBERSHIPS.SUBSCRIPTION_EXPIRES_AT.isNotNull)
+            .and(MEMBERSHIPS.SUBSCRIPTION_EXPIRES_AT.le(cutoff))
+            .fetch()
+            .map { it.toDto() }
+    }
+
+    fun findActiveExpired(now: OffsetDateTime): List<MembershipDto> {
+        return dsl.selectFrom(MEMBERSHIPS)
+            .where(MEMBERSHIPS.STATUS.eq(MembershipStatus.active))
+            .and(MEMBERSHIPS.SUBSCRIPTION_EXPIRES_AT.isNotNull)
+            .and(MEMBERSHIPS.SUBSCRIPTION_EXPIRES_AT.le(now))
+            .fetch()
+            .map { it.toDto() }
+    }
+
+    fun findGracePeriodExpired(graceCutoff: OffsetDateTime): List<MembershipDto> {
+        return dsl.selectFrom(MEMBERSHIPS)
+            .where(MEMBERSHIPS.STATUS.eq(MembershipStatus.grace_period))
+            .and(MEMBERSHIPS.SUBSCRIPTION_EXPIRES_AT.isNotNull)
+            .and(MEMBERSHIPS.SUBSCRIPTION_EXPIRES_AT.le(graceCutoff))
+            .fetch()
+            .map { it.toDto() }
+    }
+
+    fun updateStatusById(id: UUID, status: MembershipStatus) {
+        dsl.update(MEMBERSHIPS)
+            .set(MEMBERSHIPS.STATUS, status)
+            .set(MEMBERSHIPS.UPDATED_AT, OffsetDateTime.now())
+            .where(MEMBERSHIPS.ID.eq(id))
+            .execute()
+    }
+
+    fun extendSubscription(id: UUID, newExpiresAt: OffsetDateTime) {
+        dsl.update(MEMBERSHIPS)
+            .set(MEMBERSHIPS.SUBSCRIPTION_EXPIRES_AT, newExpiresAt)
+            .set(MEMBERSHIPS.STATUS, MembershipStatus.active)
+            .set(MEMBERSHIPS.UPDATED_AT, OffsetDateTime.now())
+            .where(MEMBERSHIPS.ID.eq(id))
+            .execute()
+    }
+
     fun findMembersWithUsers(clubId: UUID): List<ClubMemberDto> {
         return dsl.select(
             MEMBERSHIPS.USER_ID,

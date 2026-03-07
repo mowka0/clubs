@@ -833,6 +833,46 @@
 
 ---
 
+## [TASK-034] Payment: подписки — рекуррентное списание, grace_period, grandfathering цены
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `membership/MembershipRepository.kt` — добавлены методы для управления подписками:
+    - `findById(id: UUID)` — поиск membership по ID
+    - `findActiveExpiringSoon(cutoff)` — active memberships с subscription_expires_at <= cutoff
+    - `findActiveExpired(now)` — active memberships с истёкшей подпиской
+    - `findGracePeriodExpired(graceCutoff)` — grace_period memberships где expires_at <= graceCutoff
+    - `updateStatusById(id, status)` — обновление статуса по ID
+    - `extendSubscription(id, newExpiresAt)` — продление подписки (STATUS → active)
+  - `payment/SubscriptionService.kt` — новый Spring @Service:
+    - `handleSuccessfulRenewal(membershipId, userId, clubId, amountStars, telegramPaymentId)` — продлевает подписку на 30 дней (base = max(expiresAt, now)), создаёт транзакцию с 80/20 split
+    - `sendRenewalInvoice(membershipId)` — отправляет Telegram Stars invoice через Bot API, используя `locked_subscription_price` (grandfathering цены)
+    - `setGracePeriod(membershipId)` — статус → grace_period
+    - `expireMembership(membershipId)` — статус → expired
+  - `payment/TelegramStarsPaymentService.kt` — `handleSuccessfulPayment` теперь дополнительно продлевает `subscription_expires_at` на 30 дней при успешной оплате
+  - `payment/SubscriptionScheduler.kt` — Spring @Component, три ежедневных задачи:
+    - `notifyExpiringSoon()` — за 3 дня до истечения отправляет push-уведомление через `notificationService.notifySubscriptionExpiringSoon`
+    - `transitionExpiredToGracePeriod()` — active + expired → grace_period, отправляет renewal invoice
+    - `expireGracePeriodMemberships()` — grace_period + expires_at + 3 дня <= now → expired
+  - `SubscriptionServiceTest.kt` — 9 unit-тестов: все проходят
+    - handleSuccessfulRenewal: extends from expiry, uses now when expired, NotFoundException, 80/20 split
+    - sendRenewalInvoice: sends invoice+notification, skips free club (null price), skips zero price
+    - setGracePeriod: updates status
+    - expireMembership: updates status
+  - `./gradlew build && ./gradlew test` — BUILD SUCCESSFUL, 216+ тестов проходят
+- **Архитектурные решения:**
+  - Telegram Stars не поддерживает серверное автосписание — бот отправляет invoice через ЛС, пользователь оплачивает вручную
+  - Grandfathering: locked_subscription_price зафиксирована при вступлении, renewals всегда используют её
+  - Grace period: 3 дня после истечения, определяется через `subscription_expires_at + 3 дня <= now`
+  - Отмена подписки (leave) уже реализована в TASK-015: статус cancelled, доступ до конца оплаченного периода (isActiveMember проверяет expires_at)
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-035 — Финансовый дашборд (deps: TASK-033 ✅, TASK-011 ✅)
+  2. TASK-036 — Frontend инициализация (in_progress, нужно npm install && npm run dev)
+  3. TASK-037 — Frontend API клиент (deps: TASK-036 in_progress, TASK-004 in_progress)
+
+---
+
 ## Инициализация проекта
 - **Дата:** 2026-03-05
 - **Статус:** tasks.json сгенерирован

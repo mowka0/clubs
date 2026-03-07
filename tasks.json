@@ -812,7 +812,7 @@
         "Шаг 6: Изменить цену клуба — renewal использует старую locked цену"
       ],
       "dependencies": ["TASK-033", "TASK-014"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-035",

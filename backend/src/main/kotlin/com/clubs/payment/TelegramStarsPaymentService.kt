@@ -3,9 +3,11 @@ package com.clubs.payment
 import com.clubs.bot.TelegramApiClient
 import com.clubs.club.ClubRepository
 import com.clubs.config.NotFoundException
+import com.clubs.generated.jooq.enums.MembershipStatus
 import com.clubs.membership.MembershipRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.time.OffsetDateTime
 import java.util.UUID
 
 @Service
@@ -60,6 +62,19 @@ class TelegramStarsPaymentService(
             organizerRevenue = organizerRevenue,
             telegramPaymentId = telegramPaymentId
         )
+
+        // Extend subscription by 30 days on successful payment
+        if (resolvedMembershipId != null) {
+            val membership = membershipRepository.findById(resolvedMembershipId)
+            if (membership != null) {
+                val base = if (membership.subscriptionExpiresAt != null && membership.subscriptionExpiresAt.isAfter(OffsetDateTime.now())) {
+                    membership.subscriptionExpiresAt
+                } else {
+                    OffsetDateTime.now()
+                }
+                membershipRepository.extendSubscription(resolvedMembershipId, base.plusDays(30))
+            }
+        }
 
         log.info(
             "Payment recorded: user={} club={} amount={} Stars telegramPaymentId={}",
