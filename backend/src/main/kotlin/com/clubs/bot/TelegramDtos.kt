@@ -8,7 +8,8 @@ data class TelegramUpdate(
     @JsonProperty("update_id") val updateId: Long,
     val message: TelegramMessage? = null,
     @JsonProperty("callback_query") val callbackQuery: TelegramCallbackQuery? = null,
-    @JsonProperty("my_chat_member") val myChatMember: TelegramChatMemberUpdated? = null
+    @JsonProperty("my_chat_member") val myChatMember: TelegramChatMemberUpdated? = null,
+    @JsonProperty("pre_checkout_query") val preCheckoutQuery: TelegramPreCheckoutQuery? = null
 )
 
 data class TelegramMessage(
@@ -16,7 +17,24 @@ data class TelegramMessage(
     val from: TelegramUser? = null,
     val chat: TelegramChat,
     val text: String? = null,
-    val date: Long = 0
+    val date: Long = 0,
+    @JsonProperty("successful_payment") val successfulPayment: TelegramSuccessfulPayment? = null
+)
+
+data class TelegramPreCheckoutQuery(
+    val id: String,
+    val from: TelegramUser,
+    val currency: String,
+    @JsonProperty("total_amount") val totalAmount: Int,
+    @JsonProperty("invoice_payload") val invoicePayload: String
+)
+
+data class TelegramSuccessfulPayment(
+    val currency: String,
+    @JsonProperty("total_amount") val totalAmount: Int,
+    @JsonProperty("invoice_payload") val invoicePayload: String,
+    @JsonProperty("telegram_payment_charge_id") val telegramPaymentChargeId: String,
+    @JsonProperty("provider_payment_charge_id") val providerPaymentChargeId: String
 )
 
 data class TelegramUser(

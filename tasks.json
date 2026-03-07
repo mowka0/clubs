@@ -786,7 +786,7 @@
         "Шаг 4: Проверить расчёт: 100 Stars -> 80 организатору, 20 платформе"
       ],
       "dependencies": ["TASK-003", "TASK-028"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-034",

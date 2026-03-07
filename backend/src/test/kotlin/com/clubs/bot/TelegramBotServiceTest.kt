@@ -6,6 +6,7 @@ import com.clubs.event.EventDto
 import com.clubs.event.EventRepository
 import com.clubs.event.EventResponseRepository
 import com.clubs.event.VoteCountsDto
+import com.clubs.payment.TelegramStarsPaymentService
 import com.clubs.reputation.ReputationDto
 import com.clubs.reputation.ReputationService
 import com.clubs.user.UserDto
@@ -33,6 +34,7 @@ class TelegramBotServiceTest {
     @Mock lateinit var eventResponseRepository: EventResponseRepository
     @Mock lateinit var reputationService: ReputationService
     @Mock lateinit var userService: UserService
+    @Mock lateinit var telegramStarsPaymentService: TelegramStarsPaymentService
 
     private lateinit var telegramBotService: TelegramBotService
 
@@ -52,7 +54,8 @@ class TelegramBotServiceTest {
             eventRepository = eventRepository,
             eventResponseRepository = eventResponseRepository,
             reputationService = reputationService,
-            userService = userService
+            userService = userService,
+            telegramStarsPaymentService = telegramStarsPaymentService
         )
     }
 

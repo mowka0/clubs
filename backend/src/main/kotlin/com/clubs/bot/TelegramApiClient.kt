@@ -53,6 +53,72 @@ class TelegramApiClient(
         }
     }
 
+    fun createChatInviteLink(chatId: Long): String? {
+        if (botToken.isBlank()) return null
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            val response = restTemplate.postForObject(
+                "$baseUrl/createChatInviteLink",
+                HttpEntity(mapOf("chat_id" to chatId), jsonHeaders()),
+                Map::class.java
+            ) as Map<String, Any>?
+            val result = response?.get("result") as? Map<*, *>
+            result?.get("invite_link") as? String
+        } catch (e: Exception) {
+            log.error("Error creating chat invite link for chatId=$chatId", e)
+            null
+        }
+    }
+
+    fun createInvoiceLink(
+        title: String,
+        description: String,
+        payload: String,
+        amountStars: Int
+    ): String? {
+        if (botToken.isBlank()) return null
+        return try {
+            val body = mapOf(
+                "title" to title,
+                "description" to description,
+                "payload" to payload,
+                "provider_token" to "",
+                "currency" to "XTR",
+                "prices" to listOf(mapOf("label" to title, "amount" to amountStars))
+            )
+            @Suppress("UNCHECKED_CAST")
+            val response = restTemplate.postForObject(
+                "$baseUrl/createInvoiceLink",
+                HttpEntity(body, jsonHeaders()),
+                Map::class.java
+            ) as Map<String, Any>?
+            response?.get("result") as? String
+        } catch (e: Exception) {
+            log.error("Error creating invoice link", e)
+            null
+        }
+    }
+
+    fun answerPreCheckoutQuery(preCheckoutQueryId: String, ok: Boolean, errorMessage: String? = null) {
+        if (botToken.isBlank()) return
+        try {
+            val body = mutableMapOf<String, Any>(
+                "pre_checkout_query_id" to preCheckoutQueryId,
+                "ok" to ok
+            )
+            if (!ok && errorMessage != null) {
+                body["error_message"] = errorMessage
+            }
+            restTemplate.postForObject(
+                "$baseUrl/answerPreCheckoutQuery",
+                HttpEntity(body, jsonHeaders()),
+                Map::class.java
+            )
+        } catch (e: Exception) {
+            log.error("Error answering pre_checkout_query $preCheckoutQueryId", e)
+        }
+    }
+
     private fun jsonHeaders() = HttpHeaders().apply {
         contentType = MediaType.APPLICATION_JSON
     }

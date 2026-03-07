@@ -456,6 +456,47 @@
 
 ---
 
+## [TASK-033] Payment: интеграция Telegram Stars API
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `payment/PaymentDtos.kt` — `TransactionDto`, `CreateInvoiceRequest`, `CreateInvoiceResponse`, `InvoicePayload`
+  - `payment/PaymentService.kt` — интерфейс за которым прячется реализация: `createInvoice`, `handleSuccessfulPayment`, `validatePreCheckoutQuery`
+  - `payment/TelegramStarsPaymentService.kt` — реализация через Telegram Stars API:
+    - `createInvoice(userId, clubId)` — получает клуб, формирует payload `"{clubId}_{userId}"`, вызывает `createInvoiceLink` Bot API (currency=XTR, provider_token="")
+    - `handleSuccessfulPayment(...)` — рассчитывает 80/20 split, сохраняет транзакцию через TransactionRepository, ищет membershipId через MembershipRepository
+    - `validatePreCheckoutQuery(clubId, amountStars)` — проверяет существование клуба и совпадение цены
+    - `parseInvoicePayload(payload)` — парсит формат `"{clubId}_{userId}"`
+  - `payment/TransactionRepository.kt` — jOOQ DSLContext репозиторий:
+    - `create(userId, clubId, membershipId, amountStars, platformFee, organizerRevenue, telegramPaymentId, type)` — INSERT RETURNING
+    - `findByUserAndClub(userId, clubId)` — история транзакций
+    - `findByClub(clubId)` — для финансового блока (TASK-035)
+  - `payment/PaymentController.kt` — `POST /api/payments/create-invoice` — требует JWT, возвращает `{invoiceLink}`
+  - `bot/TelegramDtos.kt` — добавлены `TelegramPreCheckoutQuery`, `TelegramSuccessfulPayment`, обновлены `TelegramUpdate` и `TelegramMessage`
+  - `bot/TelegramApiClient.kt` — добавлены:
+    - `createInvoiceLink(title, description, payload, amountStars)` — Telegram Stars invoice через API
+    - `answerPreCheckoutQuery(id, ok, errorMessage?)` — ответ на pre-checkout
+  - `bot/TelegramBotService.kt` — обработка входящих платёжных updates:
+    - `handlePreCheckoutQuery()` — парсит payload, валидирует, отвечает `answerPreCheckoutQuery`
+    - `handleSuccessfulPayment()` — парсит payload, вызывает `TelegramStarsPaymentService.handleSuccessfulPayment`
+    - `TelegramStarsPaymentService` инжектирован в конструктор
+  - `TelegramBotServiceTest.kt` — добавлен mock `telegramStarsPaymentService` в setUp
+  - `./gradlew build && ./gradlew test` — BUILD SUCCESSFUL, все тесты проходят
+- **Архитектурные решения:**
+  - `PaymentService` за интерфейсом — реализацию можно заменить без изменений контроллера
+  - Invoice payload формат: `"{clubId}_{userId}"` (простая строка, не JSON) — надёжный парсинг
+  - `pre_checkout_query` обрабатывается в `processUpdate` до `message` (приоритет)
+  - `successful_payment` приходит как поле в `TelegramMessage` — обрабатывается перед обычными командами
+  - Platform fee: 20% (int округление вниз), organizer: amountStars - platformFee
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-030 — Привязка Telegram-группы к клубу (deps: TASK-028 ✅, TASK-010 ✅)
+  2. TASK-031 — Групповые уведомления бота (deps: TASK-028 ✅, TASK-019 ✅)
+  3. TASK-032 — Личные уведомления с Redis-очередью (deps: TASK-005 ✅, TASK-028 ✅)
+  4. TASK-034 — Подписки, рекуррентное списание (deps: TASK-033 ✅, TASK-014 ✅)
+
+---
+
 ## [TASK-029] Telegram Bot: команды /кто_идет, /мой_рейтинг, /события
 - **Дата:** 2026-03-07
 - **Статус:** done

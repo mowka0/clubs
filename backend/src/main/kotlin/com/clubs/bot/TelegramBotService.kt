@@ -4,6 +4,7 @@ import com.clubs.club.ClubDto
 import com.clubs.club.ClubRepository
 import com.clubs.event.EventRepository
 import com.clubs.event.EventResponseRepository
+import com.clubs.payment.TelegramStarsPaymentService
 import com.clubs.reputation.ReputationService
 import com.clubs.user.UserService
 import org.slf4j.LoggerFactory
@@ -21,7 +22,8 @@ class TelegramBotService(
     private val eventRepository: EventRepository,
     private val eventResponseRepository: EventResponseRepository,
     private val reputationService: ReputationService,
-    private val userService: UserService
+    private val userService: UserService,
+    private val telegramStarsPaymentService: TelegramStarsPaymentService
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val dateFormatter = DateTimeFormatter.ofPattern("d MMM HH:mm")
@@ -29,6 +31,7 @@ class TelegramBotService(
     fun processUpdate(update: TelegramUpdate) {
         try {
             when {
+                update.preCheckoutQuery != null -> handlePreCheckoutQuery(update.preCheckoutQuery)
                 update.message != null -> handleMessage(update.message)
                 update.callbackQuery != null -> handleCallbackQuery(update.callbackQuery)
                 update.myChatMember != null -> handleBotMembershipChanged(update.myChatMember)
@@ -38,7 +41,26 @@ class TelegramBotService(
         }
     }
 
+    private fun handlePreCheckoutQuery(query: TelegramPreCheckoutQuery) {
+        val parsed = telegramStarsPaymentService.parseInvoicePayload(query.invoicePayload)
+        if (parsed == null) {
+            telegramApiClient.answerPreCheckoutQuery(query.id, ok = false, errorMessage = "Неверный формат платежа")
+            return
+        }
+        val (clubId, _) = parsed
+        val valid = telegramStarsPaymentService.validatePreCheckoutQuery(clubId, query.totalAmount)
+        if (valid) {
+            telegramApiClient.answerPreCheckoutQuery(query.id, ok = true)
+        } else {
+            telegramApiClient.answerPreCheckoutQuery(query.id, ok = false, errorMessage = "Клуб недоступен или цена изменилась")
+        }
+    }
+
     private fun handleMessage(message: TelegramMessage) {
+        if (message.successfulPayment != null) {
+            handleSuccessfulPayment(message)
+            return
+        }
         val text = message.text ?: return
         val chatId = message.chat.id
         val command = text.split(" ").first().split("@").first()
@@ -153,6 +175,28 @@ class TelegramBotService(
         val keyboard = InlineKeyboardMarkup(inlineKeyboard = buttons)
 
         telegramApiClient.sendMessage(chatId, sb.toString().trimEnd(), keyboard)
+    }
+
+    private fun handleSuccessfulPayment(message: TelegramMessage) {
+        val payment = message.successfulPayment ?: return
+        val telegramUserId = message.from?.id ?: return
+        val parsed = telegramStarsPaymentService.parseInvoicePayload(payment.invoicePayload)
+        if (parsed == null) {
+            log.warn("Received successful_payment with unparseable payload: {}", payment.invoicePayload)
+            return
+        }
+        val (clubId, userId) = parsed
+        try {
+            telegramStarsPaymentService.handleSuccessfulPayment(
+                userId = userId,
+                clubId = clubId,
+                amountStars = payment.totalAmount,
+                telegramPaymentId = payment.telegramPaymentChargeId
+            )
+            log.info("Payment processed: telegramUserId={} clubId={} amount={} Stars", telegramUserId, clubId, payment.totalAmount)
+        } catch (e: Exception) {
+            log.error("Error processing successful_payment for telegramUserId={} clubId={}", telegramUserId, clubId, e)
+        }
     }
 
     private fun findClubByGroupChat(chatId: Long): ClubDto? =
