@@ -108,9 +108,48 @@
   - Mock API: не используется MSW/json-server — Vite proxy в `vite.config.ts` проксирует `/api` → `localhost:8080`
 - **Проблемы:** нет
 - **Следующие шаги:**
-  1. TASK-038 — Discovery: лента клубов, фильтры, поиск, страница клуба (deps: TASK-037 ✅, TASK-011 ✅, TASK-012 ✅)
-  2. TASK-040a — Панель организатора: форма создания клуба (deps: TASK-037 ✅, TASK-011 ✅)
-  3. TASK-039a — Внутренний экран клуба: события, голосование (deps: TASK-037 ✅, TASK-020 ✅, TASK-022 ✅)
+  1. TASK-040a — Панель организатора: форма создания клуба (deps: TASK-037 ✅, TASK-011 ✅)
+  2. TASK-039a — Внутренний экран клуба: события, голосование (deps: TASK-037 ✅, TASK-020 ✅, TASK-022 ✅)
+  3. TASK-041 — Flow вступления: Stars оплата, форма заявки, invite-ссылки (deps: TASK-037 ✅, TASK-015 ✅, TASK-017 ✅)
+
+---
+
+## [TASK-038] Frontend: Discovery — лента клубов, фильтры, поиск, ClubPage
+- **Дата:** 2026-03-08
+- **Статус:** done
+- **Что сделано:**
+  - `frontend/src/types/club.ts` — Club, ClubMember, PagedClubsResponse, ClubFilters, CLUB_CATEGORIES, CATEGORY_LABELS, ACCESS_TYPE_LABELS
+  - `frontend/src/api/clubs.ts` — clubsApi: getClubs (с фильтрами), getClub, getMembers, join, apply, getGeoCity
+  - `frontend/src/api/membership.ts` — membershipApi: joinClub, leaveClub, joinByInvite, applyToClub, getMyApplications
+  - `frontend/src/store/clubsStore.ts` — обновлён: использует тип Club из types/club.ts
+  - `frontend/src/components/ClubCard.tsx`:
+    - Карточка: обложка/аватар, название, категория, город, цена, промо-теги, кол-во участников, индикатор "идут на встречу"
+    - ClubCardSkeleton — loading skeleton для списка
+  - `frontend/src/pages/DiscoveryPage.tsx`:
+    - Поиск по названию (form submit)
+    - Фильтр города: IP-based автодетект (`/api/geo/city`) + ручной ввод + сброс
+    - Категорийные чипсы (8 категорий + "Все")
+    - Сортировка: relevance / newest / price_asc / price_desc
+    - Расширенные фильтры: ползунок цены
+    - Infinite scroll через IntersectionObserver
+    - Loading skeleton (3 карточки при начальной загрузке)
+    - Empty state + CTA "Сбросить фильтры"
+    - Error state + Retry кнопка
+    - Блок "заявки ожидают" в шапке (pending applications count)
+    - Нет стейл-closure бага: все фильтры применяются через `applyAndFetch(newFilterState)`
+  - `frontend/src/pages/ClubPage.tsx`:
+    - Loading skeleton, error state
+    - Обложка (cover gradient если нет), аватар
+    - Промо-теги, название, мета (категория, город, тип, участники, цена)
+    - Описание, правила
+    - Кнопка "Вступить" (открытый клуб) / "Хочу вступить" (закрытый) / "Открыть клуб" (уже участник/организатор) / "Клуб заполнен"
+    - Форма заявки с вопросом организатора
+    - Success state после вступления / заявки
+    - Фиксированная кнопка внизу (fixed bottom)
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. Запустить `npm install && npm run dev` для верификации
+  2. Перейти к TASK-040a или TASK-039a
 
 ---
 

@@ -916,7 +916,7 @@
         "Шаг 7: Скролл вниз — подгружаются следующие клубы"
       ],
       "dependencies": ["TASK-037", "TASK-011", "TASK-012"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-039a",

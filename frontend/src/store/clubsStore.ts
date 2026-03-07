@@ -1,21 +1,5 @@
 import { create } from 'zustand'
-
-interface Club {
-  id: string
-  name: string
-  description: string
-  city: string
-  category: string
-  accessType: 'open' | 'closed' | 'private'
-  memberLimit: number
-  currentMemberCount: number
-  subscriptionPrice: number
-  avatarUrl: string | null
-  coverUrl: string | null
-  isActive: boolean
-  activityRating: number
-  createdAt: string
-}
+import type { Club } from '../types/club'
 
 interface ClubsState {
   clubs: Club[]
