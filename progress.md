@@ -456,6 +456,36 @@
 
 ---
 
+## [TASK-026] Reputation: сервис расчёта по 6 типам поведения, обновление user_club_reputation
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `reputation/ReputationDto.kt` — data class с полями из user_club_reputation: id, userId, clubId, reliabilityIndex, promiseFulfillmentPct, spontaneityCount, totalConfirmed, totalAttended, createdAt, updatedAt
+  - `reputation/ReputationRepository.kt` — jOOQ DSLContext репозиторий:
+    - `findByUserAndClub(userId, clubId) -> ReputationDto?`
+    - `findByClub(clubId) -> List<ReputationDto>` — сортировка по reliability_index DESC
+    - `findAllByUser(userId) -> List<ReputationDto>`
+    - `upsert(userId, clubId, reliabilityDelta, totalConfirmedDelta, totalAttendedDelta, spontaneityDelta)` — INSERT если нет, UPDATE если есть; автопересчёт promise_fulfillment_pct = (totalAttended / totalConfirmed) * 100
+  - `reputation/ReputationService.kt` — Spring @Service:
+    - `calculateAndUpdate(eventId)` — для каждого response события определяет тип поведения и вызывает upsert:
+      - Железобетонный: going + attended → +100, totalConfirmed+1, totalAttended+1
+      - Пустозвон: going + absent → -50, totalConfirmed+1
+      - Передумавший: going + declined → 0, totalConfirmed+1
+      - Спонтанный: maybe + attended → +30, totalConfirmed+1, totalAttended+1, spontaneity+1
+      - Вечный сомневающийся: maybe + absent → 0, totalConfirmed+1
+      - Молчун/waitlisted/not_going → пропускается (нет записи в репутацию)
+    - `getClubReputation(clubId)`, `getUserClubReputation(userId, clubId)`, `getAllUserReputations(userId)` — query методы
+  - `event/EventScheduler.kt` — добавлен вызов `reputationService.calculateAndUpdate(event.id)` после `finalizeAttendance` в scheduled задаче финализации
+  - `ReputationServiceTest.kt` — 10 unit-тестов (mockito-kotlin): NotFoundException, going+attended, going+absent, going+declined, maybe+attended, maybe+absent, Молчун/waitlisted, multiple users, empty responses, delegate methods — все проходят
+  - `EventStage2SchedulerTest.kt` — добавлен mock ReputationService в setUp (требуется после изменения конструктора EventScheduler)
+  - `./gradlew build && ./gradlew test` — BUILD SUCCESSFUL
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-027 — Reputation REST API + scheduler trigger (deps: TASK-026 ✅) — все зависимости выполнены
+  2. TASK-028 — Telegram Bot initialization (deps: TASK-001 effectively done)
+
+---
+
 ## [TASK-025] Event: отметка присутствия, оспаривание, финализация через 48 часов
 - **Дата:** 2026-03-07
 - **Статус:** done

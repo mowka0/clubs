@@ -1,6 +1,7 @@
 package com.clubs.event
 
 import com.clubs.generated.jooq.enums.FinalStatus
+import com.clubs.reputation.ReputationService
 import org.jooq.DSLContext
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -13,6 +14,7 @@ class EventStage2SchedulerTest {
     private lateinit var dsl: DSLContext
     private lateinit var eventRepository: EventRepository
     private lateinit var eventResponseRepository: EventResponseRepository
+    private lateinit var reputationService: ReputationService
     private lateinit var scheduler: EventScheduler
 
     private val clubId = UUID.randomUUID()
@@ -22,7 +24,8 @@ class EventStage2SchedulerTest {
         dsl = mock()
         eventRepository = mock()
         eventResponseRepository = mock()
-        scheduler = EventScheduler(dsl, eventRepository, eventResponseRepository)
+        reputationService = mock()
+        scheduler = EventScheduler(dsl, eventRepository, eventResponseRepository, reputationService)
     }
 
     private fun makeEvent(limit: Int): EventDto = EventDto(

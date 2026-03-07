@@ -3,6 +3,7 @@ package com.clubs.event
 import com.clubs.generated.jooq.enums.EventStatus
 import com.clubs.generated.jooq.enums.FinalStatus
 import com.clubs.generated.jooq.tables.references.EVENTS
+import com.clubs.reputation.ReputationService
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -13,7 +14,8 @@ import java.time.OffsetDateTime
 class EventScheduler(
     private val dsl: DSLContext,
     private val eventRepository: EventRepository,
-    private val eventResponseRepository: EventResponseRepository
+    private val eventResponseRepository: EventResponseRepository,
+    private val reputationService: ReputationService
 ) {
 
     private val log = LoggerFactory.getLogger(EventScheduler::class.java)
@@ -84,6 +86,7 @@ class EventScheduler(
             try {
                 eventRepository.finalizeAttendance(event.id)
                 log.info("Finalized attendance for event ${event.id}")
+                reputationService.calculateAndUpdate(event.id)
             } catch (e: Exception) {
                 log.error("Failed to finalize attendance for event ${event.id}: ${e.message}", e)
             }
