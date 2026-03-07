@@ -55,7 +55,7 @@
         "Шаг 4: Ожидаемый результат — {\"status\":\"UP\"} с деталями db и redis"
       ],
       "dependencies": [],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-002",
@@ -128,7 +128,7 @@
         "Шаг 7: Отправить запрос на несуществующий ресурс — получить JSON {error, message, status, timestamp}"
       ],
       "dependencies": ["TASK-001", "TASK-002"],
-      "status": "in_progress"
+      "status": "done"
     },
     {
       "id": "TASK-005",
@@ -862,7 +862,7 @@
         "Шаг 6: Проверить в консоли — нет ошибок, SDK инициализирован (или mock)"
       ],
       "dependencies": [],
-      "status": "in_progress"
+      "status": "done"
     },
     {
       "id": "TASK-037",
@@ -885,7 +885,7 @@
         "Шаг 4: Вызвать GET /api/users/me через apiClient — получить данные пользователя"
       ],
       "dependencies": ["TASK-036", "TASK-004"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-038",

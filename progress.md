@@ -84,6 +84,36 @@
 
 ---
 
+## [TASK-037] Frontend: API-клиент, AuthProvider, Zustand store
+- **Дата:** 2026-03-08
+- **Статус:** done
+- **Что сделано:**
+  - `frontend/src/api/apiClient.ts` — fetch-клиент с baseURL `/api`:
+    - `request<T>()` — автоматически подставляет `Authorization: Bearer <token>` из Zustand store
+    - При 401 — автоматический re-auth: вызывает `authenticate()` (initData → JWT), повторяет запрос
+    - Методы: `apiClient.get`, `apiClient.post`, `apiClient.put`, `apiClient.delete`
+    - `ApiError` — кастомный Error с `status`, `message`, `data`
+    - `authenticate()` — POST /api/auth/telegram с initData, сохраняет user + token в useAuthStore
+  - `frontend/src/auth/AuthProvider.tsx` — React-провайдер:
+    - При монтировании вызывает `authenticate()` → JWT в памяти
+    - `setLoading(true)` до завершения, `setLoading(false)` в finally (всегда)
+    - `useAuthContext()` — возвращает `{ logout }` (logout = clearAuth)
+  - `frontend/src/hooks/useAuth.ts` — `useAuth()` хук: `{ user, isLoading, isAuthenticated, logout }`
+  - `frontend/src/components/ErrorBoundary.tsx` — React class component с retry кнопкой ("Попробовать снова"), обрабатывает любые ошибки дочерних компонентов
+  - `frontend/src/store/authStore.ts` — Zustand: `user, token, isLoading, isAuthenticated, setAuth, clearAuth, setLoading`
+  - `frontend/src/store/clubsStore.ts` — Zustand: `clubs, isLoading, hasMore, setClubs, appendClubs, reset` (для infinite scroll)
+  - `frontend/src/store/eventsStore.ts` — Zustand: `events, isLoading, setEvents, setLoading`
+  - `frontend/src/App.tsx` — обновлён: ErrorBoundary + AuthProvider корректно обёртывают всё приложение
+  - Mock initData: `.env.development` содержит `VITE_MOCK_INIT_DATA` → `getInitData()` возвращает его вне Telegram
+  - Mock API: не используется MSW/json-server — Vite proxy в `vite.config.ts` проксирует `/api` → `localhost:8080`
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-038 — Discovery: лента клубов, фильтры, поиск, страница клуба (deps: TASK-037 ✅, TASK-011 ✅, TASK-012 ✅)
+  2. TASK-040a — Панель организатора: форма создания клуба (deps: TASK-037 ✅, TASK-011 ✅)
+  3. TASK-039a — Внутренний экран клуба: события, голосование (deps: TASK-037 ✅, TASK-020 ✅, TASK-022 ✅)
+
+---
+
 ## [TASK-036] Frontend: React + TypeScript + Vite + @telegram-apps/sdk v2
 - **Дата:** 2026-03-06
 - **Статус:** in_progress (код написан, требуется `npm install && npm run dev` для верификации)
