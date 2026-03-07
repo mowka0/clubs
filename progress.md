@@ -373,6 +373,24 @@
 
 ---
 
+## [TASK-022] EventResponse: REST-контроллер — vote, stats, responses
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `event/EventResponseDto.kt` — добавлен `EventStatsDto(going, maybe, notGoing, confirmed, limit)`
+  - `event/EventResponseService.kt` — добавлен `getStats(eventId)`: агрегирует `countByStatus` + `event.confirmedCount` + `event.participantLimit`
+  - `event/EventResponseController.kt` — Spring @RestController:
+    - `POST /api/events/{id}/vote` → 200: голосование (going/maybe/not_going), валидация + проверка stage_1 в сервисе
+    - `GET /api/events/{id}/stats` → 200/404: сводка {going, maybe, notGoing, confirmed, limit}
+    - `GET /api/events/{id}/responses` → 200/403/404: список ответов (только для участников клуба)
+  - `./gradlew build` — BUILD SUCCESSFUL
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-017 — Application REST-контроллер (deps: TASK-004 in_progress, TASK-016 ✅)
+  2. TASK-018 — Application scheduler автоотклонения 48ч (dep: TASK-016 ✅)
+
+---
+
 ## [TASK-021] EventResponse: репозиторий + сервис голосования Этапа 1
 - **Дата:** 2026-03-07
 - **Статус:** done

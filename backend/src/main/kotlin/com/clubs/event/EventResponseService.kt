@@ -39,6 +39,19 @@ class EventResponseService(
         return eventResponseRepository.countByStatus(eventId)
     }
 
+    fun getStats(eventId: UUID): EventStatsDto {
+        val event = eventRepository.findById(eventId)
+            ?: throw NotFoundException("Event $eventId not found")
+        val counts = eventResponseRepository.countByStatus(eventId)
+        return EventStatsDto(
+            going = counts.going,
+            maybe = counts.maybe,
+            notGoing = counts.notGoing,
+            confirmed = event.confirmedCount,
+            limit = event.participantLimit
+        )
+    }
+
     fun getResponses(eventId: UUID, requesterId: UUID): List<EventResponseDto> {
         val event = eventRepository.findById(eventId)
             ?: throw NotFoundException("Event $eventId not found")

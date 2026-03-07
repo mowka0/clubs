@@ -538,7 +538,7 @@
         "Шаг 4: POST vote на событие в статусе completed — ошибка 400"
       ],
       "dependencies": ["TASK-004", "TASK-021"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-023",

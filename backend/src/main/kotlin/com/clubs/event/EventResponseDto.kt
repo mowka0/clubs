@@ -22,3 +22,11 @@ data class VoteCountsDto(
     val maybe: Int,
     val notGoing: Int
 )
+
+data class EventStatsDto(
+    val going: Int,
+    val maybe: Int,
+    val notGoing: Int,
+    val confirmed: Int,
+    val limit: Int
+)
