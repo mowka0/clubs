@@ -101,6 +101,15 @@ class EventRepository(private val dsl: DSLContext) {
             .execute()
     }
 
+    fun decrementConfirmedCount(id: UUID) {
+        dsl.update(EVENTS)
+            .set(EVENTS.CONFIRMED_COUNT, EVENTS.CONFIRMED_COUNT.minus(1))
+            .set(EVENTS.UPDATED_AT, OffsetDateTime.now())
+            .where(EVENTS.ID.eq(id))
+            .and(EVENTS.CONFIRMED_COUNT.gt(0))
+            .execute()
+    }
+
     /**
      * Atomically increments confirmed_count if below limit. Returns new count, or null if limit reached.
      */

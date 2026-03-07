@@ -38,4 +38,24 @@ class EventResponseController(
         val responses = eventResponseService.getResponses(id, userId)
         return ResponseEntity.ok(responses)
     }
+
+    @PostMapping("/api/events/{id}/confirm")
+    fun confirm(
+        @PathVariable id: UUID,
+        authentication: Authentication
+    ): ResponseEntity<ConfirmDeclineResponse> {
+        val userId = UUID.fromString(authentication.principal as String)
+        val response = eventResponseService.confirm(userId, id)
+        return ResponseEntity.ok(response)
+    }
+
+    @PostMapping("/api/events/{id}/decline")
+    fun decline(
+        @PathVariable id: UUID,
+        authentication: Authentication
+    ): ResponseEntity<ConfirmDeclineResponse> {
+        val userId = UUID.fromString(authentication.principal as String)
+        val response = eventResponseService.decline(userId, id)
+        return ResponseEntity.ok(response)
+    }
 }

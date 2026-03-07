@@ -4,8 +4,10 @@ import com.clubs.config.NotFoundException
 import org.springframework.security.access.AccessDeniedException
 import com.clubs.config.ValidationException
 import com.clubs.generated.jooq.enums.EventStatus
+import com.clubs.generated.jooq.enums.FinalStatus
 import com.clubs.generated.jooq.enums.VoteStatus
 import com.clubs.membership.MembershipService
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -15,6 +17,8 @@ class EventResponseService(
     private val eventRepository: EventRepository,
     private val membershipService: MembershipService
 ) {
+
+    private val log = LoggerFactory.getLogger(EventResponseService::class.java)
 
     fun vote(userId: UUID, eventId: UUID, status: String): EventResponseDto {
         val event = eventRepository.findById(eventId)
@@ -61,5 +65,70 @@ class EventResponseService(
         }
 
         return eventResponseRepository.findByEvent(eventId)
+    }
+
+    fun confirm(userId: UUID, eventId: UUID): ConfirmDeclineResponse {
+        val event = eventRepository.findById(eventId)
+            ?: throw NotFoundException("Event $eventId not found")
+
+        if (event.status != EventStatus.stage_2.literal) {
+            throw ValidationException("Confirm is only available during stage_2. Current status: ${event.status}")
+        }
+
+        val response = eventResponseRepository.findByEventAndUser(eventId, userId)
+            ?: throw NotFoundException("No vote found for user in event $eventId")
+
+        if (response.stage1Status != VoteStatus.going.literal && response.stage1Status != VoteStatus.maybe.literal) {
+            throw ValidationException("Only users who voted 'going' or 'maybe' can confirm")
+        }
+
+        // Idempotent: already confirmed
+        if (response.finalStatus == FinalStatus.confirmed.literal) {
+            return ConfirmDeclineResponse(finalStatus = "confirmed", positionInWaitlist = null)
+        }
+
+        // Try to get a slot atomically
+        val newCount = eventRepository.atomicIncrementConfirmedCount(eventId, event.participantLimit)
+
+        return if (newCount != null) {
+            eventResponseRepository.updateFinalStatus(eventId, userId, FinalStatus.confirmed)
+            ConfirmDeclineResponse(finalStatus = "confirmed", positionInWaitlist = null)
+        } else {
+            val maxPosition = eventResponseRepository.findWaitlistedByEvent(eventId)
+                .maxOfOrNull { it.waitlistPosition ?: 0 } ?: 0
+            val position = maxPosition + 1
+            eventResponseRepository.updateFinalStatus(eventId, userId, FinalStatus.waitlisted, waitlistPosition = position)
+            ConfirmDeclineResponse(finalStatus = "waitlisted", positionInWaitlist = position)
+        }
+    }
+
+    fun decline(userId: UUID, eventId: UUID): ConfirmDeclineResponse {
+        val event = eventRepository.findById(eventId)
+            ?: throw NotFoundException("Event $eventId not found")
+
+        if (event.status != EventStatus.stage_2.literal) {
+            throw ValidationException("Decline is only available during stage_2. Current status: ${event.status}")
+        }
+
+        val response = eventResponseRepository.findByEventAndUser(eventId, userId)
+            ?: throw NotFoundException("No vote found for user in event $eventId")
+
+        val wasConfirmed = response.finalStatus == FinalStatus.confirmed.literal
+
+        eventResponseRepository.updateFinalStatus(eventId, userId, FinalStatus.declined)
+
+        if (wasConfirmed) {
+            eventRepository.decrementConfirmedCount(eventId)
+            val firstWaitlisted = eventResponseRepository.findWaitlistedByEvent(eventId).firstOrNull()
+            if (firstWaitlisted != null) {
+                val newCount = eventRepository.atomicIncrementConfirmedCount(eventId, event.participantLimit)
+                if (newCount != null) {
+                    eventResponseRepository.updateFinalStatus(eventId, firstWaitlisted.userId, FinalStatus.confirmed)
+                    log.info("Promoted user ${firstWaitlisted.userId} from waitlist to confirmed for event $eventId")
+                }
+            }
+        }
+
+        return ConfirmDeclineResponse(finalStatus = "declined", positionInWaitlist = null)
     }
 }

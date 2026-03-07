@@ -89,6 +89,15 @@ class EventResponseRepository(private val dsl: DSLContext) {
             .execute()
     }
 
+    fun findWaitlistedByEvent(eventId: UUID): List<EventResponseDto> {
+        return dsl.selectFrom(EVENT_RESPONSES)
+            .where(EVENT_RESPONSES.EVENT_ID.eq(eventId))
+            .and(EVENT_RESPONSES.FINAL_STATUS.eq(FinalStatus.waitlisted))
+            .orderBy(EVENT_RESPONSES.WAITLIST_POSITION.asc())
+            .fetch()
+            .map { it.toDto() }
+    }
+
     fun countByStatus(eventId: UUID): VoteCountsDto {
         val responses = findByEvent(eventId)
         return VoteCountsDto(

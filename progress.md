@@ -456,6 +456,30 @@
 
 ---
 
+## [TASK-024] Event Stage 2: контроллер confirm/decline + авто-промоция из waitlist
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `event/EventResponseDto.kt` — добавлен `ConfirmDeclineResponse(finalStatus, positionInWaitlist)`
+  - `event/EventResponseRepository.kt` — добавлен `findWaitlistedByEvent(eventId)`: waitlisted ответы по `WAITLIST_POSITION ASC`
+  - `event/EventRepository.kt` — добавлен `decrementConfirmedCount(id)`: безопасное уменьшение `confirmed_count` (с `confirmed_count > 0` guard)
+  - `event/EventResponseService.kt` — добавлены методы:
+    - `confirm(userId, eventId)` — проверки: статус `stage_2`, голос `going/maybe`, idempotent если уже confirmed; атомарный `atomicIncrementConfirmedCount` → `confirmed` или `waitlisted` с позицией
+    - `decline(userId, eventId)` — устанавливает `declined`; если был `confirmed`: decrements count, находит первого из waitlist, атомарно инкрементирует и промотирует его в `confirmed`
+  - `event/EventResponseController.kt` — добавлены эндпоинты:
+    - `POST /api/events/{id}/confirm` → 200: `ConfirmDeclineResponse`
+    - `POST /api/events/{id}/decline` → 200: `ConfirmDeclineResponse`
+  - `EventStage2ConfirmDeclineTest.kt` — 16 unit-тестов (mockito-kotlin): все проходят
+    - confirm: not found event/vote, wrong status, validation (not_going), slot available → confirmed, no slot → waitlisted, correct position, idempotent, maybe voter
+    - decline: not found event/vote, wrong status, sets declined, no decrement if not confirmed, promotes first waitlisted, no promotion if atomic fails
+  - `./gradlew build && ./gradlew test` — BUILD SUCCESSFUL, 16/16 тестов
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-025 — Event: отметка присутствия организатором + оспаривание + финализация 48ч (deps: TASK-020 ✅, TASK-024 ✅)
+  2. TASK-028 — Telegram Bot initialization (deps: TASK-001 ✅)
+
+---
+
 ## [TASK-023] Event Stage 2: scheduler — Сценарий А/Б, FIFO, waitlist
 - **Дата:** 2026-03-07
 - **Статус:** done

@@ -30,3 +30,8 @@ data class EventStatsDto(
     val confirmed: Int,
     val limit: Int
 )
+
+data class ConfirmDeclineResponse(
+    val finalStatus: String,
+    val positionInWaitlist: Int?
+)

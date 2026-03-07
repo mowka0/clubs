@@ -586,7 +586,7 @@
         "Шаг 4: Проверить что первый в waitlist стал confirmed"
       ],
       "dependencies": ["TASK-004", "TASK-023"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-025",
