@@ -456,6 +456,44 @@
 
 ---
 
+## [TASK-028] Telegram Bot: инициализация, webhook endpoint, /start
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `bot/TelegramDtos.kt` — Kotlin data classes для Telegram Bot API: `TelegramUpdate`, `TelegramMessage`, `TelegramUser`, `TelegramChat`, `TelegramCallbackQuery`, `TelegramChatMemberUpdated`, `TelegramChatMember`, `SendMessageRequest`, `InlineKeyboardMarkup`, `InlineKeyboardButton`, `SetWebhookRequest` — все с `@JsonProperty` для snake_case полей
+  - `bot/TelegramApiClient.kt` — Spring @Component, HTTP-клиент к Telegram Bot API через RestTemplate:
+    - `setWebhook(webhookUrl, secretToken?)` — регистрация webhook с drop_pending_updates=true; graceful skip если botToken пуст
+    - `sendMessage(chatId, text, replyMarkup?)` — отправка сообщения с optional inline-кнопкой; ошибки логируются, не пробрасываются
+  - `bot/TelegramBotService.kt` — Spring @Service, обработка входящих updates:
+    - `processUpdate(update)` — роутинг по типу: message / callbackQuery / myChatMember; ошибки в одном update не крашат приложение
+    - `/start`, `/help` → `handleStartCommand()` — HTML приветствие + InlineKeyboardMarkup с кнопкой «Открыть Clubs»
+    - Неизвестные команды логируются на DEBUG, не крашат бота
+    - `handleBotMembershipChanged()` — логирует событие добавления/удаления бота в группу (для TASK-030)
+    - `buildDeepLink(param)` — формирует `{miniAppUrl}?startapp={param}` для event_{id}, club_{id}, invite_{code}
+  - `bot/WebhookController.kt` — Spring @RestController `POST /api/webhook/telegram`:
+    - Валидация `X-Telegram-Bot-Api-Secret-Token` header (если настроен); возвращает 403 при несовпадении
+    - Уже был `permitAll` в SecurityConfig для `/api/webhook/**`
+  - `bot/TelegramBotInitializer.kt` — Spring @Component с `@EventListener(ApplicationReadyEvent::class)`:
+    - При старте вызывает `setWebhook` если `telegram.webhook-url` задан
+    - Graceful skip при отсутствии URL (dev-окружение)
+  - `bot/BotConfig.kt` — `@Configuration`, создаёт `RestTemplate` bean через `RestTemplateBuilder`
+  - `application.yml` — добавлены ключи: `telegram.webhook-url`, `telegram.webhook-secret-token`, `app.mini-app-url` с env-var defaults
+  - `TelegramBotServiceTest.kt` — 9 unit-тестов (mockito-kotlin): start команда, help команда, start@botname, неизвестная команда, null message, message без текста, callback query, myChatMember update, buildDeepLink — все проходят
+  - `./gradlew build && ./gradlew test --rerun-tasks` — BUILD SUCCESSFUL, 9/9 новых тестов
+
+- **Архитектурные решения:**
+  - Без внешнего kotlin-telegram-bot фреймворка — прямые HTTP-вызовы через RestTemplate; минимум зависимостей
+  - `botToken.isBlank()` → graceful no-op; приложение запускается без токена в dev-режиме
+  - Inline-кнопки используют `url` (открывает Mini App через t.me deeplink), а не `web_app` (требует HTTPS домена)
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-029 — Bot команды /кто_идет, /мой_рейтинг, /события (deps: TASK-028 ✅, TASK-007 ✅, TASK-019 ✅, TASK-026 ✅)
+  2. TASK-030 — Привязка Telegram-группы к клубу (deps: TASK-028 ✅, TASK-010 ✅)
+  3. TASK-031 — Групповые уведомления (deps: TASK-028 ✅, TASK-019 ✅)
+  4. TASK-032 — Личные уведомления с Redis-очередью (deps: TASK-005 ✅, TASK-028 ✅)
+
+---
+
 ## [TASK-027] Reputation: scheduler автопересчёта + REST API
 - **Дата:** 2026-03-07
 - **Статус:** done

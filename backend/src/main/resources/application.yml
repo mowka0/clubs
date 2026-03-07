@@ -44,7 +44,12 @@ jwt:
 
 telegram:
   bot-token: ${TELEGRAM_BOT_TOKEN:}
-  bot-username: ${TELEGRAM_BOT_USERNAME:}
+  bot-username: ${TELEGRAM_BOT_USERNAME:clubsapp}
+  webhook-url: ${TELEGRAM_WEBHOOK_URL:}
+  webhook-secret-token: ${TELEGRAM_WEBHOOK_SECRET:}
+
+app:
+  mini-app-url: ${APP_MINI_APP_URL:https://t.me/clubsapp}
 
 logging:
   level:
