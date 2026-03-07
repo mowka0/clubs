@@ -7,6 +7,8 @@ import com.clubs.generated.jooq.enums.EventStatus
 import com.clubs.generated.jooq.enums.FinalStatus
 import com.clubs.generated.jooq.enums.VoteStatus
 import com.clubs.membership.MembershipService
+import com.clubs.notification.NotificationService
+import com.clubs.user.UserService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.util.UUID
@@ -15,7 +17,9 @@ import java.util.UUID
 class EventResponseService(
     private val eventResponseRepository: EventResponseRepository,
     private val eventRepository: EventRepository,
-    private val membershipService: MembershipService
+    private val membershipService: MembershipService,
+    private val userService: UserService,
+    private val notificationService: NotificationService
 ) {
 
     private val log = LoggerFactory.getLogger(EventResponseService::class.java)
@@ -125,6 +129,10 @@ class EventResponseService(
                 if (newCount != null) {
                     eventResponseRepository.updateFinalStatus(eventId, firstWaitlisted.userId, FinalStatus.confirmed)
                     log.info("Promoted user ${firstWaitlisted.userId} from waitlist to confirmed for event $eventId")
+                    // Notify the promoted user
+                    userService.findById(firstWaitlisted.userId)?.let { promotedUser ->
+                        notificationService.notifySlotFreed(promotedUser.telegramId, event.title, eventId)
+                    }
                 }
             }
         }

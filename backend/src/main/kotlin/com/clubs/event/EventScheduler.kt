@@ -3,7 +3,9 @@ package com.clubs.event
 import com.clubs.generated.jooq.enums.EventStatus
 import com.clubs.generated.jooq.enums.FinalStatus
 import com.clubs.generated.jooq.tables.references.EVENTS
+import com.clubs.notification.NotificationService
 import com.clubs.reputation.ReputationService
+import com.clubs.user.UserService
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -15,7 +17,9 @@ class EventScheduler(
     private val dsl: DSLContext,
     private val eventRepository: EventRepository,
     private val eventResponseRepository: EventResponseRepository,
-    private val reputationService: ReputationService
+    private val reputationService: ReputationService,
+    private val userService: UserService,
+    private val notificationService: NotificationService
 ) {
 
     private val log = LoggerFactory.getLogger(EventScheduler::class.java)
@@ -137,6 +141,18 @@ class EventScheduler(
                 "Event ${event.id} Stage 2 Scenario A: ${confirmed.size} confirmed, " +
                     "${waitlisted.size} waitlisted (limit=$limit)"
             )
+
+            // Notify participants
+            confirmed.forEach { r ->
+                userService.findById(r.userId)?.let { user ->
+                    notificationService.notifyStage2Started(user.telegramId, event.title, event.id)
+                }
+            }
+            waitlisted.forEachIndexed { index, r ->
+                userService.findById(r.userId)?.let { user ->
+                    notificationService.notifyWaitlisted(user.telegramId, event.title, event.id, index + 1)
+                }
+            }
         } else {
             // Scenario B: going <= limit — fill remaining spots from maybe pool (FIFO)
             val maybeResponses = eventResponseRepository.findMaybeByEvent(event.id)
@@ -164,6 +180,14 @@ class EventScheduler(
                     "Event ${event.id} Stage 2 Scenario B: $totalConfirmed confirmed " +
                         "(${goingResponses.size} going + ${maybeToConfirm.size} maybe)"
                 )
+            }
+
+            // Notify all confirmed participants
+            val allConfirmed = goingResponses + maybeToConfirm
+            allConfirmed.forEach { r ->
+                userService.findById(r.userId)?.let { user ->
+                    notificationService.notifyStage2Started(user.telegramId, event.title, event.id)
+                }
             }
         }
     }

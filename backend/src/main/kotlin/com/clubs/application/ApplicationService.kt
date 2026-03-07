@@ -8,6 +8,9 @@ import com.clubs.generated.jooq.enums.ApplicationStatus
 import com.clubs.generated.jooq.enums.MembershipRole
 import com.clubs.membership.MembershipRepository
 import com.clubs.membership.MembershipService
+import com.clubs.notification.NotificationService
+import com.clubs.user.UserService
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -16,8 +19,11 @@ class ApplicationService(
     private val applicationRepository: ApplicationRepository,
     private val clubRepository: ClubRepository,
     private val membershipRepository: MembershipRepository,
-    private val membershipService: MembershipService
+    private val membershipService: MembershipService,
+    private val userService: UserService,
+    private val notificationService: NotificationService
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     fun submitApplication(userId: UUID, clubId: UUID, answerText: String?): ApplicationDto {
         clubRepository.findById(clubId)
@@ -50,6 +56,17 @@ class ApplicationService(
 
         applicationRepository.updateStatus(applicationId, ApplicationStatus.approved)
 
+        // Notify applicant
+        try {
+            val club = clubRepository.findById(application.clubId)
+            val user = userService.findById(application.userId)
+            if (club != null && user != null) {
+                notificationService.notifyApplicationApproved(user.telegramId, club.name, club.id)
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to send application approved notification for applicationId={}", applicationId, e)
+        }
+
         return applicationRepository.findById(applicationId)!!
     }
 
@@ -64,6 +81,18 @@ class ApplicationService(
         }
 
         applicationRepository.updateStatus(applicationId, ApplicationStatus.rejected, reason)
+
+        // Notify applicant
+        try {
+            val club = clubRepository.findById(application.clubId)
+            val user = userService.findById(application.userId)
+            if (club != null && user != null) {
+                notificationService.notifyApplicationRejected(user.telegramId, club.name, reason)
+            }
+        } catch (e: Exception) {
+            log.warn("Failed to send application rejected notification for applicationId={}", applicationId, e)
+        }
+
         return applicationRepository.findById(applicationId)!!
     }
 

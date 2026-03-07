@@ -4,6 +4,8 @@ import com.clubs.config.NotFoundException
 import com.clubs.config.ValidationException
 import com.clubs.generated.jooq.enums.VoteStatus
 import com.clubs.membership.MembershipService
+import com.clubs.notification.NotificationService
+import com.clubs.user.UserService
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -18,6 +20,8 @@ class EventResponseServiceTest {
     private lateinit var eventResponseRepository: EventResponseRepository
     private lateinit var eventRepository: EventRepository
     private lateinit var membershipService: MembershipService
+    private lateinit var userService: UserService
+    private lateinit var notificationService: NotificationService
     private lateinit var service: EventResponseService
 
     private val userId = UUID.randomUUID()
@@ -29,7 +33,10 @@ class EventResponseServiceTest {
         eventResponseRepository = mock()
         eventRepository = mock()
         membershipService = mock()
-        service = EventResponseService(eventResponseRepository, eventRepository, membershipService)
+        userService = mock()
+        notificationService = mock()
+        whenever(userService.findById(any())).thenReturn(null)
+        service = EventResponseService(eventResponseRepository, eventRepository, membershipService, userService, notificationService)
     }
 
     private fun makeEvent(status: String = "stage_1"): EventDto {

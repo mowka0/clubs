@@ -497,6 +497,42 @@
 
 ---
 
+## [TASK-032] Telegram Bot: личные уведомления с Redis-очередью и rate limiting
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `notification/QueuedNotification.kt` — data class с полями: chatId, text, buttonText?, buttonUrl? (default-значения для Jackson десериализации)
+  - `notification/NotificationQueueService.kt` — Spring @Service:
+    - `enqueue(chatId, text, buttonText?, buttonUrl?)` — LPUSH в Redis list `notifications:queue`
+    - `@Scheduled(fixedRate = 1000)` worker: обрабатывает до 25 сообщений за тик (rate limit Telegram API), создаёт InlineKeyboardMarkup если есть кнопка, вызывает `TelegramApiClient.sendMessage`
+  - `notification/NotificationService.kt` — Spring @Service, высокоуровневые типизированные методы:
+    - `sendPersonalNotification(telegramId, text, buttonText?, buttonUrl?)` — добавляет в очередь (ошибки не пробрасываются)
+    - `sendGroupNotification(chatId, text, buttonText?, buttonUrl?)` — переиспользуется TASK-031
+    - `notifyApplicationApproved/notifyApplicationRejected` — уведомления о заявках
+    - `notifyStage2Started/notifyWaitlisted/notifySlotFreed` — уведомления Этапа 2
+    - `notifyMarkedAbsent` — уведомление об отметке absent с кнопкой "Оспорить"
+    - `notifySubscriptionExpiringSoon(daysLeft)` — уведомление о скором истечении подписки
+  - **Интеграция в существующие сервисы:**
+    - `ApplicationService` — approve → notifyApproved, reject → notifyRejected
+    - `EventScheduler.processStage2` — confirmed → notifyStage2Started, waitlisted → notifyWaitlisted
+    - `AttendanceService.recordAttendance` — absent → notifyMarkedAbsent
+    - `EventResponseService.decline` — при промоции из waitlist → notifySlotFreed
+  - **Обновлены тесты** (добавлены mock UserService + NotificationService): EventStage2SchedulerTest, ApplicationServiceTest, AttendanceServiceTest, EventStage2ConfirmDeclineTest, EventResponseServiceTest
+  - `NotificationServiceTest.kt` — 13 unit-тестов: все типы уведомлений, graceful degradation, buildDeepLink — все проходят
+  - `./gradlew build && ./gradlew test --rerun-tasks` — BUILD SUCCESSFUL
+- **Архитектурные решения:**
+  - Redis list `notifications:queue` — LPUSH (head) + RPOP (tail) = FIFO очередь
+  - Rate limit: `@Scheduled(fixedRate = 1000)` + while loop до 25 итераций = max 25 msg/sec
+  - `QueuedNotification` с default-значениями для корректной десериализации Jackson (GenericJackson2JsonRedisSerializer)
+  - Notification вызовы в сервисах обёрнуты в try/catch — ошибка не ломает основную операцию
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-030 — Привязка Telegram-группы к клубу (deps: TASK-028 ✅, TASK-010 ✅)
+  2. TASK-031 — Групповые уведомления (deps: TASK-028 ✅, TASK-019 ✅, NotificationService ✅)
+  3. TASK-034 — Подписки рекуррентное списание (deps: TASK-033 ✅, TASK-014 ✅)
+
+---
+
 ## [TASK-029] Telegram Bot: команды /кто_идет, /мой_рейтинг, /события
 - **Дата:** 2026-03-07
 - **Статус:** done

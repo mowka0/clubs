@@ -8,6 +8,8 @@ import com.clubs.generated.jooq.enums.ApplicationStatus
 import com.clubs.membership.MembershipDto
 import com.clubs.membership.MembershipRepository
 import com.clubs.membership.MembershipService
+import com.clubs.notification.NotificationService
+import com.clubs.user.UserService
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -23,6 +25,8 @@ class ApplicationServiceTest {
     private lateinit var clubRepository: ClubRepository
     private lateinit var membershipRepository: MembershipRepository
     private lateinit var membershipService: MembershipService
+    private lateinit var userService: UserService
+    private lateinit var notificationService: NotificationService
     private lateinit var service: ApplicationService
 
     private val userId = UUID.randomUUID()
@@ -36,7 +40,11 @@ class ApplicationServiceTest {
         clubRepository = mock()
         membershipRepository = mock()
         membershipService = mock()
-        service = ApplicationService(applicationRepository, clubRepository, membershipRepository, membershipService)
+        userService = mock()
+        notificationService = mock()
+        // Default: findById returns null so notifications are silently skipped
+        whenever(userService.findById(any())).thenReturn(null)
+        service = ApplicationService(applicationRepository, clubRepository, membershipRepository, membershipService, userService, notificationService)
     }
 
     private fun makeApplication(

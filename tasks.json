@@ -764,7 +764,7 @@
         "Шаг 4: Отправить 30+ уведомлений — проверить rate limiting (без ошибок 429)"
       ],
       "dependencies": ["TASK-005", "TASK-028"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-033",
