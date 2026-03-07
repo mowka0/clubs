@@ -17,3 +17,7 @@ data class ApplicationDto(
 data class SubmitApplicationRequest(
     val answerText: String?
 )
+
+data class RejectApplicationRequest(
+    val reason: String?
+)

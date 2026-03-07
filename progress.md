@@ -373,6 +373,27 @@
 
 ---
 
+## [TASK-017] Application: REST-контроллер — apply, applications, approve, reject, my
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `application/ApplicationDto.kt` — добавлен `RejectApplicationRequest(reason: String?)`
+  - `application/ApplicationController.kt` — Spring @RestController с полными путями:
+    - `POST /api/clubs/{id}/apply` → 201: подача заявки, тело `SubmitApplicationRequest`
+    - `GET /api/clubs/{id}/applications` → 200: список заявок (только организатор, фильтр по `?status=pending|approved|rejected`)
+    - `PUT /api/applications/{id}/approve` → 200/403/404: одобрение заявки
+    - `PUT /api/applications/{id}/reject` → 200/403/404: отклонение, тело `RejectApplicationRequest`
+    - `GET /api/applications/my` → 200: мои заявки
+  - Извлечение userId из `Authentication.principal` (паттерн из других контроллеров)
+  - `./gradlew build && ./gradlew test` — BUILD SUCCESSFUL, все тесты проходят
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-018 — Application scheduler автоотклонения 48ч (dep: TASK-016 ✅)
+  2. TASK-023 — Event Stage 2 scheduler (deps: TASK-005 pending, TASK-021 ✅)
+  3. TASK-005 — Redis конфигурация (dep: TASK-001 ✅)
+
+---
+
 ## [TASK-022] EventResponse: REST-контроллер — vote, stats, responses
 - **Дата:** 2026-03-07
 - **Статус:** done

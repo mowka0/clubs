@@ -428,7 +428,7 @@
         "Шаг 5: GET /api/applications/my — увидеть свою заявку со статусом approved"
       ],
       "dependencies": ["TASK-004", "TASK-016"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-018",
