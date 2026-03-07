@@ -181,6 +181,36 @@
 
 ---
 
+## [TASK-016] Application: репозиторий + сервис для заявок в закрытые клубы
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `application/ApplicationDto.kt` — `ApplicationDto`, `SubmitApplicationRequest` data classes
+  - `application/ApplicationRepository.kt` — jOOQ DSLContext репозиторий:
+    - `create(userId, clubId, answerText) -> ApplicationDto` — статус pending
+    - `findById(id) -> ApplicationDto?`
+    - `findByUserAndClub(userId, clubId) -> ApplicationDto?` — последняя заявка
+    - `findByClubId(clubId, status?) -> List<ApplicationDto>` — с опциональным фильтром по статусу
+    - `findPendingByUserAndClub(userId, clubId) -> ApplicationDto?` — активная pending заявка
+    - `updateStatus(id, status, rejectionReason?)` — смена статуса
+    - `findAllByUser(userId) -> List<ApplicationDto>` — все заявки пользователя
+    - `findPendingOlderThan(cutoff) -> List<ApplicationDto>` — для автоотклонения (TASK-018)
+  - `application/ApplicationService.kt` — Spring @Service:
+    - `submitApplication(userId, clubId, answerText)` — проверки: клуб существует, не участник, нет pending заявки
+    - `approveApplication(applicationId, organizerId)` — проверка организатора, создаёт membership через `MembershipService.joinClub`, затем статус approved
+    - `rejectApplication(applicationId, organizerId, reason?)` — проверка организатора, статус rejected
+    - `getClubApplications(clubId, requesterId, status?)` — только для организатора
+    - `getMyApplications(userId)` — все заявки пользователя
+  - `ApplicationServiceTest.kt` — 10 unit-тестов через mockito-kotlin: все проходят
+  - `./gradlew build && ./gradlew test --rerun-tasks` — BUILD SUCCESSFUL
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-017 — Application REST-контроллер (deps: TASK-004 in_progress, TASK-016 ✅)
+  2. TASK-018 — Application scheduler автоотклонения 48ч (dep: TASK-016 ✅)
+  3. TASK-021 — EventResponse репозиторий + сервис (deps: TASK-019 ✅, TASK-014 ✅)
+
+---
+
 ## [TASK-013] Club: invite-ссылки для приватных клубов
 - **Дата:** 2026-03-07
 - **Статус:** done

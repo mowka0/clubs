@@ -405,7 +405,7 @@
         "Шаг 4: rejectApplication от не-организатора — ошибка 403"
       ],
       "dependencies": ["TASK-014"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-017",
