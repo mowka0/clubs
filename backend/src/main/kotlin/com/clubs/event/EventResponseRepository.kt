@@ -1,5 +1,6 @@
 package com.clubs.event
 
+import com.clubs.generated.jooq.enums.FinalStatus
 import com.clubs.generated.jooq.enums.VoteStatus
 import com.clubs.generated.jooq.tables.references.EVENT_RESPONSES
 import org.jooq.DSLContext
@@ -52,6 +53,40 @@ class EventResponseRepository(private val dsl: DSLContext) {
             .orderBy(EVENT_RESPONSES.RESPONDED_AT.asc())
             .fetch()
             .map { it.toDto() }
+    }
+
+    fun findGoingByEvent(eventId: UUID): List<EventResponseDto> {
+        return dsl.selectFrom(EVENT_RESPONSES)
+            .where(EVENT_RESPONSES.EVENT_ID.eq(eventId))
+            .and(EVENT_RESPONSES.STAGE_1_STATUS.eq(VoteStatus.going))
+            .orderBy(EVENT_RESPONSES.RESPONDED_AT.asc())
+            .fetch()
+            .map { it.toDto() }
+    }
+
+    fun findMaybeByEvent(eventId: UUID): List<EventResponseDto> {
+        return dsl.selectFrom(EVENT_RESPONSES)
+            .where(EVENT_RESPONSES.EVENT_ID.eq(eventId))
+            .and(EVENT_RESPONSES.STAGE_1_STATUS.eq(VoteStatus.maybe))
+            .orderBy(EVENT_RESPONSES.RESPONDED_AT.asc())
+            .fetch()
+            .map { it.toDto() }
+    }
+
+    fun updateFinalStatus(eventId: UUID, userId: UUID, finalStatus: FinalStatus, waitlistPosition: Int? = null) {
+        val now = OffsetDateTime.now()
+        val update = dsl.update(EVENT_RESPONSES)
+            .set(EVENT_RESPONSES.FINAL_STATUS, finalStatus)
+            .set(EVENT_RESPONSES.UPDATED_AT, now)
+        if (finalStatus == FinalStatus.confirmed) {
+            update.set(EVENT_RESPONSES.CONFIRMED_AT, now)
+        }
+        if (waitlistPosition != null) {
+            update.set(EVENT_RESPONSES.WAITLIST_POSITION, waitlistPosition)
+        }
+        update.where(EVENT_RESPONSES.EVENT_ID.eq(eventId))
+            .and(EVENT_RESPONSES.USER_ID.eq(userId))
+            .execute()
     }
 
     fun countByStatus(eventId: UUID): VoteCountsDto {

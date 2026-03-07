@@ -75,6 +75,44 @@ class EventRepository(private val dsl: DSLContext) {
         return findById(id) ?: throw IllegalStateException("Event $id not found after update")
     }
 
+    /**
+     * Returns all stage_1 events where event_datetime - 24h <= now() and stage_2 not yet triggered.
+     */
+    fun findEventsReadyForStage2(): List<EventDto> {
+        val cutoff = OffsetDateTime.now().plusHours(24)
+        return dsl.selectFrom(EVENTS)
+            .where(EVENTS.STATUS.eq(EventStatus.stage_1))
+            .and(EVENTS.STAGE_2_TRIGGERED.eq(false))
+            .and(EVENTS.EVENT_DATETIME.le(cutoff))
+            .fetch()
+            .map { it.toDto() }
+    }
+
+    /**
+     * Marks the event as stage_2 triggered: sets stage_2_triggered=true, status=stage_2, confirmed_count.
+     */
+    fun markStage2Triggered(id: UUID, confirmedCount: Int) {
+        dsl.update(EVENTS)
+            .set(EVENTS.STAGE_2_TRIGGERED, true)
+            .set(EVENTS.STATUS, EventStatus.stage_2)
+            .set(EVENTS.CONFIRMED_COUNT, confirmedCount)
+            .set(EVENTS.UPDATED_AT, OffsetDateTime.now())
+            .where(EVENTS.ID.eq(id))
+            .execute()
+    }
+
+    /**
+     * Atomically increments confirmed_count if below limit. Returns new count, or null if limit reached.
+     */
+    fun atomicIncrementConfirmedCount(id: UUID, limit: Int): Int? {
+        val result = dsl.resultQuery(
+            "UPDATE events SET confirmed_count = confirmed_count + 1, updated_at = now() " +
+                "WHERE id = ? AND confirmed_count < ? RETURNING confirmed_count",
+            id, limit
+        ).fetch()
+        return if (result.isEmpty()) null else result.first().get(0, Int::class.java)
+    }
+
     private fun org.jooq.Record.toDto(): EventDto = EventDto(
         id = get(EVENTS.ID)!!,
         clubId = get(EVENTS.CLUB_ID)!!,

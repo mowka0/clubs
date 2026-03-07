@@ -431,6 +431,35 @@
 
 ---
 
+## [TASK-023] Event Stage 2: scheduler — Сценарий А/Б, FIFO, waitlist
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `event/EventRepository.kt` — добавлены методы:
+    - `findEventsReadyForStage2()`: находит stage_1 события с `event_datetime - 24h <= now()` и `stage_2_triggered = false`
+    - `markStage2Triggered(id, confirmedCount)`: атомарный UPDATE — `stage_2_triggered=true`, `status=stage_2`, `confirmed_count`
+    - `atomicIncrementConfirmedCount(id, limit)`: SQL `UPDATE ... WHERE confirmed_count < limit RETURNING confirmed_count` для TASK-024
+  - `event/EventResponseRepository.kt` — добавлены методы:
+    - `findGoingByEvent(eventId)`: going-ответы по `responded_at ASC` (FIFO)
+    - `findMaybeByEvent(eventId)`: maybe-ответы по `responded_at ASC`
+    - `updateFinalStatus(eventId, userId, finalStatus, waitlistPosition?)`: обновляет `final_status`, `confirmed_at`, `waitlist_position`
+  - `event/EventScheduler.kt` — добавлен `triggerStage2ForEligibleEvents()` (каждые 15 минут):
+    - **Сценарий А** (going > limit): первые N → `confirmed` (FIFO), остальные → `waitlisted` с позицией
+    - **Сценарий Б** (going <= limit): все going → `confirmed`, остаток мест заполняется maybe (FIFO); при дефиците — warn-лог "Organizer notification needed"
+    - Ошибки в одном событии не останавливают обработку остальных (try/catch)
+    - `EventResponseRepository` инжектируется в `EventScheduler`
+  - `EventStage2SchedulerTest.kt` — 5 unit-тестов (mockito-kotlin): no events, Scenario A, Scenario B with deficit, Scenario B exact, multi-event + exception isolation
+  - `./gradlew build && ./gradlew test --rerun-tasks` — BUILD SUCCESSFUL, все тесты проходят
+- **Проблемы:**
+  - Decline-flow (при отказе confirmed → первый из waitlist становится confirmed) реализован в TASK-024
+  - Реальные уведомления (ЛС и Telegram-группа) реализуются в TASK-032
+- **Следующие шаги:**
+  1. TASK-024 — Event Stage 2 контроллер confirm/decline (deps: TASK-004 in_progress, TASK-023 ✅)
+  2. TASK-012 — Club sorting algorithm (deps: TASK-011 ✅)
+  3. TASK-028 — Telegram Bot init (deps: TASK-001 ✅ by build)
+
+---
+
 ## [TASK-022] EventResponse: REST-контроллер — vote, stats, responses
 - **Дата:** 2026-03-07
 - **Статус:** done
