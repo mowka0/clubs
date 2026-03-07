@@ -148,7 +148,7 @@
         "Шаг 4: Через тест или endpoint записать/прочитать значение из Redis"
       ],
       "dependencies": ["TASK-001"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-006",

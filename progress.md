@@ -413,6 +413,24 @@
 
 ---
 
+## [TASK-005] Redis конфигурация: RedisConfig, RedisTemplate<String, Any>
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `config/RedisConfig.kt` — Spring @Configuration:
+    - `redisTemplate(connectionFactory)` bean: `RedisTemplate<String, Any>` с `StringRedisSerializer` для ключей и `GenericJackson2JsonRedisSerializer` для значений и hash-значений
+    - Использует auto-configured `LettuceConnectionFactory` от Spring Boot (конфиг из application.yml: `spring.data.redis.host/port`)
+  - `config/RedisConfigTest.kt` — 4 unit-теста: проверка сериализаторов ключей, значений, hash-ключей и connection factory; все проходят
+  - `application.yml` уже содержал `spring.data.redis.host/port` для dev и prod профилей
+  - `./gradlew build && ./gradlew test --rerun-tasks` — BUILD SUCCESSFUL
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-023 — Event Stage 2 scheduler (deps: TASK-005 ✅, TASK-021 ✅) — все зависимости выполнены
+  2. TASK-012 — Club sorting algorithm (deps: TASK-011 ✅)
+  3. TASK-028 — Telegram Bot initialization (deps: TASK-001 ✅)
+
+---
+
 ## [TASK-022] EventResponse: REST-контроллер — vote, stats, responses
 - **Дата:** 2026-03-07
 - **Статус:** done
