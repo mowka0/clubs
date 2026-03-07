@@ -383,7 +383,7 @@
         "Шаг 7: POST /api/clubs/{id}/leave — статус cancelled, subscription_expires_at не меняется"
       ],
       "dependencies": ["TASK-011", "TASK-014", "TASK-013"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-016",

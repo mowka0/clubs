@@ -57,4 +57,8 @@ class MembershipService(
         }
         membershipRepository.updateStatus(userId, clubId, MembershipStatus.cancelled)
     }
+
+    fun getMembership(userId: UUID, clubId: UUID): MembershipDto? {
+        return membershipRepository.findByUserAndClub(userId, clubId)
+    }
 }

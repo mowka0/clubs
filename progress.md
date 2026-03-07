@@ -162,6 +162,25 @@
 
 ---
 
+## [TASK-015] Membership: flow вступления — POST /join, POST /invite/{code}/join, POST /leave
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `membership/MembershipController.kt` — Spring @RestController на `/api/clubs`:
+    - `POST /api/clubs/{id}/join` — проверяет существование клуба, `accessType == "open"` (иначе 400 с советом использовать /apply), вызывает `MembershipService.joinClub()`, возвращает `JoinClubResponse(membership, telegramInviteLink=null)`
+    - `POST /api/clubs/invite/{code}/join` — валидирует код через `InviteLinkService.validateAndGetClub()`, создаёт membership, деактивирует одноразовую ссылку через `consumeLink()`
+    - `POST /api/clubs/{id}/leave` — вызывает `leaveClub()`, возвращает обновлённый `MembershipDto` со статусом cancelled
+  - `membership/MembershipService.kt` — добавлен метод `getMembership(userId, clubId)` для получения membership после выхода
+  - `JoinClubResponse` — data class: `membership: MembershipDto`, `telegramInviteLink: String?` (null до TASK-030)
+  - Обработка конфликтов: `ConflictException(409)` при повторном вступлении, `ValidationException(400)` при полном клубе или не-открытом типе доступа, `NotFoundException(404)` при невалидной/использованной invite-ссылке
+  - `./gradlew build` — BUILD SUCCESSFUL, все тесты проходят
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-016 — Application репозиторий + сервис (dep: TASK-014 ✅)
+  2. TASK-021 — EventResponse репозиторий + сервис (deps: TASK-019 ✅, TASK-014 ✅)
+
+---
+
 ## [TASK-013] Club: invite-ссылки для приватных клубов
 - **Дата:** 2026-03-07
 - **Статус:** done
