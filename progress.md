@@ -431,6 +431,31 @@
 
 ---
 
+## [TASK-012] Club: алгоритм сортировки ленты и промо-теги
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `club/ClubDtos.kt` — добавлены поля `promoTags: List<String> = emptyList()` и `goingCount: Int = 0` в `ClubDto` (nullable defaults, не ломают существующий код)
+  - `club/ClubSortingService.kt` — Spring @Service:
+    - `computeNewnessScore(createdAt, now)` — 1.0 для клубов <2 недель, 0.0 для >2 месяцев, линейный спад между ними
+    - `computeRelevanceScore(club)` — `activity_rating * 0.5 + newness_score * 0.3` (organizer_rating = 0.0 — поле не хранится в БД)
+    - `computePromoTags(club, allClubs)` — «Новый» (<2 недель), «Популярный» (top 10% fill rate), «Свободные места» (<80% лимита)
+    - `enrichWithPromoTags(clubs)` — обогащает список с учётом peer-сравнения для «Популярный»
+  - `club/ClubRepository.kt` — `buildSortOrder` расширен для `sort=relevance`: SQL CASE-выражение с activity_rating * 0.5 + CASE newness * 0.3 в ORDER BY
+  - `club/ClubController.kt` — инжектируется `ClubSortingService`, `getClubs` теперь вызывает `enrichWithPromoTags()` перед возвратом
+  - `ClubSortingServiceTest.kt` — 11 unit-тестов: newness score (3 теста), relevance score (2), promo tags (5), enrich list (1) — все проходят
+  - `./gradlew build && ./gradlew test` — BUILD SUCCESSFUL, все тесты проходят
+- **Архитектурные решения:**
+  - `organizer_rating` не хранится в БД → используется 0.0 в формуле (не блокирует задачу, легко добавить позже через JOIN user_club_reputation)
+  - `goingCount` (индикатор «жизни») = 0 по умолчанию; реальный подсчёт 'going' на ближайшее событие требует JOIN events+event_responses — отложено на будущее
+  - Промо-тег «Есть пробный период» не реализован — в схеме БД нет поля для пробного периода
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-024 — Event Stage 2 контроллер confirm/decline (deps: TASK-004 in_progress, TASK-023 ✅)
+  2. TASK-028 — Telegram Bot init (deps: TASK-001 pending by bootRun verification)
+
+---
+
 ## [TASK-023] Event Stage 2: scheduler — Сценарий А/Б, FIFO, waitlist
 - **Дата:** 2026-03-07
 - **Статус:** done

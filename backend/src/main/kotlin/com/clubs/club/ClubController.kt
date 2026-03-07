@@ -44,7 +44,8 @@ class ClubController(
     private val clubRepository: ClubRepository,
     private val membershipService: MembershipService,
     private val membershipRepository: MembershipRepository,
-    private val inviteLinkService: InviteLinkService
+    private val inviteLinkService: InviteLinkService,
+    private val clubSortingService: ClubSortingService
 ) {
 
     @PostMapping
@@ -92,7 +93,7 @@ class ClubController(
             memberLimitMax = sizeMax,
             search = search
         )
-        val clubs = clubRepository.findAll(filters, page, size, sort)
+        val clubs = clubSortingService.enrichWithPromoTags(clubRepository.findAll(filters, page, size, sort))
         val total = clubRepository.countAll(filters)
         return ResponseEntity.ok(PagedClubsResponse(clubs, page, size, total))
     }

@@ -68,10 +68,21 @@ class ClubRepository(private val dsl: DSLContext) {
         ).toLong()
     }
 
-    private fun buildSortOrder(sort: String): SortField<*> = when (sort) {
+    internal fun buildSortOrder(sort: String): SortField<*> = when (sort) {
         "price_asc" -> CLUBS.SUBSCRIPTION_PRICE.asc()
         "price_desc" -> CLUBS.SUBSCRIPTION_PRICE.desc()
-        else -> CLUBS.CREATED_AT.desc()
+        // activity_rating * 0.5 + newness_score * 0.3 (organizer_rating not yet stored)
+        // newness_score: 1.0 if < 2 weeks old, 0.0 if > 2 months old, linear in between
+        "relevance" -> DSL.field(
+            "clubs.activity_rating * 0.5 + " +
+            "CASE " +
+            "  WHEN clubs.created_at > NOW() - INTERVAL '2 weeks' THEN 0.3 " +
+            "  WHEN clubs.created_at < NOW() - INTERVAL '2 months' THEN 0.0 " +
+            "  ELSE EXTRACT(EPOCH FROM clubs.created_at - (NOW() - INTERVAL '2 months')) / " +
+            "       EXTRACT(EPOCH FROM INTERVAL '6 weeks') * 0.3 " +
+            "END"
+        ).desc()
+        else -> CLUBS.CREATED_AT.desc() // "newest"
     }
 
     fun search(query: String): List<ClubDto> {

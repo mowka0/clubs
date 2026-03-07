@@ -22,7 +22,10 @@ data class ClubDto(
     val confirmedCount: Int,
     val isActive: Boolean,
     val createdAt: OffsetDateTime,
-    val updatedAt: OffsetDateTime
+    val updatedAt: OffsetDateTime,
+    // Computed fields (enriched by ClubSortingService)
+    val promoTags: List<String> = emptyList(),
+    val goingCount: Int = 0
 )
 
 data class CreateClubDto(
