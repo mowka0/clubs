@@ -44,6 +44,14 @@ class ClubRepository(private val dsl: DSLContext) {
             ?.toDto()
     }
 
+    fun findByTelegramGroupId(telegramGroupId: Long): ClubDto? {
+        return dsl.selectFrom(CLUBS)
+            .where(CLUBS.TELEGRAM_GROUP_ID.eq(telegramGroupId))
+            .and(CLUBS.IS_ACTIVE.isTrue)
+            .fetchOne()
+            ?.toDto()
+    }
+
     fun findAll(filters: ClubFilters, page: Int = 0, size: Int = 20, sort: String = "newest"): List<ClubDto> {
         val conditions = buildFilterConditions(filters)
         val orderBy = buildSortOrder(sort)

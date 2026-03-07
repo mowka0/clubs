@@ -456,6 +456,30 @@
 
 ---
 
+## [TASK-029] Telegram Bot: команды /кто_идет, /мой_рейтинг, /события
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `club/ClubRepository.kt` — добавлен метод `findByTelegramGroupId(telegramGroupId: Long): ClubDto?` — поиск клуба по ID группы Telegram (с фильтром `IS_ACTIVE = true`)
+  - `bot/TelegramBotService.kt` — рефакторинг: инжектированы `ClubRepository`, `EventRepository`, `EventResponseRepository`, `ReputationService`, `UserService`
+  - Добавлена обработка команд в `handleMessage()`:
+    - `/кто_идет` → `handleWhoIsGoingCommand(chatId)` — находит клуб по `telegram_group_id`, получает ближайшее предстоящее событие, выводит going/maybe/confirmed/limit + inline-кнопка
+    - `/мой_рейтинг` → `handleMyRatingCommand(chatId, from)` — находит пользователя по telegramId, репутацию по clubId; корректные сообщения если клуб/пользователь/репутация не найдены
+    - `/события` → `handleEventsCommand(chatId)` — список до 5 предстоящих событий с датами и inline-кнопками для каждого
+  - Все команды корректно обрабатывают случаи: чат не привязан к клубу, нет предстоящих событий, пользователь не зарегистрирован, нет репутации
+  - `bot/TelegramBotServiceTest.kt` — расширен до 19 тестов:
+    - 9 оригинальных тестов — сохранены
+    - 10 новых тестов: 3 для /кто_идет, 4 для /мой_рейтинг, 3 для /события
+    - Исправлен матчинг: `anyOrNull()` для nullable третьего параметра `sendMessage`
+  - `./gradlew build --rerun-tasks` — BUILD SUCCESSFUL, все тесты проходят
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-030 — Привязка Telegram-группы к клубу (deps: TASK-028 ✅, TASK-010 ✅)
+  2. TASK-031 — Групповые уведомления (deps: TASK-028 ✅, TASK-019 ✅)
+  3. TASK-032 — Личные уведомления с Redis-очередью (deps: TASK-005 ✅, TASK-028 ✅)
+
+---
+
 ## [TASK-028] Telegram Bot: инициализация, webhook endpoint, /start
 - **Дата:** 2026-03-07
 - **Статус:** done
