@@ -653,7 +653,7 @@
         "Шаг 3: GET /api/users/me/reputation — получить свою репутацию по всем клубам"
       ],
       "dependencies": ["TASK-026"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-028",

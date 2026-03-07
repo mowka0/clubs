@@ -456,6 +456,24 @@
 
 ---
 
+## [TASK-027] Reputation: scheduler автопересчёта + REST API
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - Scheduler (автовызов `ReputationService.calculateAndUpdate`) уже реализован в TASK-026: `EventScheduler.finalizeAttendanceForEligibleEvents()` вызывает `reputationService.calculateAndUpdate(event.id)` после финализации
+  - `reputation/ReputationController.kt` — Spring @RestController:
+    - `GET /api/clubs/{clubId}/reputation` → 200: список участников с репутацией (сортировка по reliability_index DESC)
+    - `GET /api/users/{userId}/clubs/{clubId}/reputation` → 200/404: репутация конкретного пользователя в клубе
+    - `GET /api/users/me/reputation` → 200: все репутации аутентифицированного пользователя по всем клубам
+  - `ReputationControllerTest.kt` — 6 unit-тестов (mockito-kotlin): getClubReputation, пустой список, getUserClubReputation success, 404, getMyReputations, пустой список — все проходят
+  - `./gradlew build` — BUILD SUCCESSFUL
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-028 — Telegram Bot initialization (deps: TASK-001 effectively done)
+  2. TASK-036/TASK-037 — Frontend (in_progress, нужно npm install && npm run dev)
+
+---
+
 ## [TASK-026] Reputation: сервис расчёта по 6 типам поведения, обновление user_club_reputation
 - **Дата:** 2026-03-07
 - **Статус:** done
