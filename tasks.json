@@ -449,7 +449,7 @@
         "Шаг 4: Проверить activity_rating клуба — уменьшился"
       ],
       "dependencies": ["TASK-016"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-019",

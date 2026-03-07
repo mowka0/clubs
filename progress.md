@@ -394,6 +394,25 @@
 
 ---
 
+## [TASK-018] Application: scheduler автоотклонения заявок старше 48 часов
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `application/ApplicationScheduler.kt` — Spring @Component со @Scheduled(fixedDelay = 1ч):
+    - `autoRejectStalePendingApplications()` — каждый час находит все pending заявки с `created_at < now() - 48h`
+    - Меняет статус каждой на `auto_rejected` через `ApplicationRepository.updateStatus()`
+    - Уменьшает `activity_rating` клуба на -0.5 через jOOQ UPDATE `CLUBS SET activity_rating = activity_rating - 0.5 WHERE id = clubId`
+    - Логирует количество автоотклонённых заявок
+  - `ApplicationRepository.findPendingOlderThan()` уже существовал — использован напрямую
+  - `./gradlew build && ./gradlew test --rerun-tasks` — BUILD SUCCESSFUL, все тесты проходят
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-012 — Club sorting algorithm (deps: TASK-011 ✅)
+  2. TASK-005 — Redis config (deps: TASK-001 ✅ by build)
+  3. TASK-023 — Event Stage 2 scheduler (deps: TASK-005 pending, TASK-021 ✅)
+
+---
+
 ## [TASK-022] EventResponse: REST-контроллер — vote, stats, responses
 - **Дата:** 2026-03-07
 - **Статус:** done
