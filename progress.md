@@ -373,6 +373,30 @@
 
 ---
 
+## [TASK-021] EventResponse: репозиторий + сервис голосования Этапа 1
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `event/EventResponseDto.kt` — data classes: `EventResponseDto` (все поля таблицы event_responses), `VoteCountsDto(going, maybe, notGoing)`
+  - `event/EventResponseRepository.kt` — jOOQ DSLContext репозиторий:
+    - `createOrUpdate(eventId, userId, stage1Status: VoteStatus) -> EventResponseDto` — INSERT если нет, UPDATE если есть
+    - `findByEventAndUser(eventId, userId) -> EventResponseDto?`
+    - `findByEvent(eventId) -> List<EventResponseDto>` — отсортированный по responded_at ASC
+    - `countByStatus(eventId) -> VoteCountsDto` — подсчёт по статусам
+  - `event/EventResponseService.kt` — Spring @Service:
+    - `vote(userId, eventId, status)` — проверки: событие существует, статус = stage_1, пользователь активный участник; создаёт/обновляет голос через репозиторий
+    - `countByStatus(eventId)` — возвращает `VoteCountsDto`
+    - `getResponses(eventId, requesterId)` — список ответов, только для участников клуба
+  - `EventResponseServiceTest.kt` — 10 unit-тестов через mockito-kotlin: все проходят
+  - `./gradlew build && ./gradlew test --rerun-tasks` — BUILD SUCCESSFUL, 10/10 тестов
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-022 — EventResponse REST-контроллер (deps: TASK-004 in_progress, TASK-021 ✅)
+  2. TASK-018 — Application scheduler автоотклонения 48ч (dep: TASK-016 ✅)
+  3. TASK-017 — Application REST-контроллер (deps: TASK-004 in_progress, TASK-016 ✅)
+
+---
+
 ## Инициализация проекта
 - **Дата:** 2026-03-05
 - **Статус:** tasks.json сгенерирован

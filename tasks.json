@@ -517,7 +517,7 @@
         "Шаг 4: vote от не-участника клуба — ошибка 403"
       ],
       "dependencies": ["TASK-019", "TASK-014"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-022",
