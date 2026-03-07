@@ -833,6 +833,31 @@
 
 ---
 
+## [TASK-035] Payment: финансовый блок дашборда — статистика и транзакции
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `payment/PaymentDtos.kt` — добавлены `FinancialStatsDto` (activeMembers, monthlyRevenueStars, organizerShare, platformShare, nextBillingDate) и `PagedTransactionsResponse` (transactions, total, page, size)
+  - `payment/TransactionRepository.kt` — добавлены методы:
+    - `findByClubForMonth(clubId, month: YearMonth)` — транзакции клуба за конкретный месяц (фильтр по CREATED_AT)
+    - `findByClubPaged(clubId, page, size)` — пагинированные транзакции (LIMIT/OFFSET)
+    - `countByClub(clubId)` — общее количество транзакций клуба
+  - `payment/FinancialService.kt` — новый Spring @Service:
+    - `getFinancialStats(clubId, requesterId, month?)` — проверяет права организатора, агрегирует транзакции за месяц (текущий если month=null), считает active_members из MembershipRepository, вычисляет nextBillingDate как ближайшую subscription_expires_at среди active-участников
+    - `getTransactions(clubId, requesterId, page, size)` — пагинированные транзакции с total count, только для организатора
+    - `requireOrganizer()` — private: проверяет role=organizer в MembershipRepository
+  - `payment/FinancialController.kt` — новый Spring @RestController на `/api/clubs`:
+    - `GET /api/clubs/{clubId}/finances?month=2026-03` → 200: финансовая статистика (только организатор)
+    - `GET /api/clubs/{clubId}/transactions?page=0&size=20` → 200: пагинированные транзакции
+  - `FinancialServiceTest.kt` — 8 unit-тестов (mockito-kotlin): club not found, non-organizer access denied, correct stats, month filter, null nextBillingDate, transactions not found, non-organizer for transactions, paged results — все проходят
+  - `./gradlew build --rerun-tasks` — BUILD SUCCESSFUL, 8/8 новых тестов
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-036 — Frontend инициализация (in_progress, нужно `npm install && npm run dev`)
+  2. TASK-037 — Frontend API-клиент (deps: TASK-036 in_progress, TASK-004 in_progress)
+
+---
+
 ## [TASK-034] Payment: подписки — рекуррентное списание, grace_period, grandfathering цены
 - **Дата:** 2026-03-07
 - **Статус:** done

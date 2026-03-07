@@ -28,3 +28,18 @@ data class InvoicePayload(
     val clubId: UUID,
     val userId: UUID
 )
+
+data class FinancialStatsDto(
+    val activeMembers: Int,
+    val monthlyRevenueStars: Int,
+    val organizerShare: Int,
+    val platformShare: Int,
+    val nextBillingDate: OffsetDateTime?
+)
+
+data class PagedTransactionsResponse(
+    val transactions: List<TransactionDto>,
+    val total: Int,
+    val page: Int,
+    val size: Int
+)

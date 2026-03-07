@@ -833,7 +833,7 @@
         "Шаг 4: GET /api/clubs/{id}/transactions — список транзакций"
       ],
       "dependencies": ["TASK-033", "TASK-011"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-036",
