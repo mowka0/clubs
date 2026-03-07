@@ -333,7 +333,7 @@
         "Шаг 4: Для одноразовой ссылки — повторный GET возвращает 404"
       ],
       "dependencies": ["TASK-010"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-014",

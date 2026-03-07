@@ -162,6 +162,32 @@
 
 ---
 
+## [TASK-013] Club: invite-ссылки для приватных клубов
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `invite/InviteLinkDto.kt` — `InviteLinkDto`, `GenerateInviteLinkRequest`, `InviteLinkResponse`
+  - `invite/InviteLinkRepository.kt` — jOOQ DSLContext репозиторий:
+    - `create(clubId, code, isSingleUse, createdBy) -> InviteLinkDto`
+    - `findByCode(code) -> InviteLinkDto?`
+    - `markUsed(code)` — устанавливает `is_used=true`, `used_at=now()`
+  - `invite/InviteLinkService.kt` — Spring @Service:
+    - `generateLink(clubId, userId, isSingleUse)` — проверяет роль организатора через MembershipRepository, генерирует UUID-код, сохраняет ссылку, возвращает `InviteLinkResponse` с полным `t.me/...` URL
+    - `validateAndGetClub(code)` — проверяет существование и неиспользованность одноразовых ссылок, возвращает ClubDto
+    - `consumeLink(code)` — деактивирует одноразовую ссылку (вызывается при вступлении в TASK-015)
+  - `club/ClubController.kt` — добавлены два эндпоинта:
+    - `GET /api/clubs/invite/{code}` — получение данных клуба по invite-коду (404 для невалидных/использованных)
+    - `POST /api/clubs/{id}/invite-link` → 201: генерация ссылки (только организатор, 403 для других)
+  - `app.bot-username` конфигурируется через `application.yml` (дефолт: `clubsapp`)
+  - `./gradlew build && ./gradlew test` — BUILD SUCCESSFUL, все тесты проходят
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-015 — Membership flow REST (POST /join, /leave, /invite/{code}/join) — все зависимости ✅ (TASK-011 ✅, TASK-014 ✅, TASK-013 ✅)
+  2. TASK-016 — Application репозиторий + сервис (dep: TASK-014 ✅)
+  3. TASK-021 — EventResponse репозиторий + сервис (deps: TASK-019 ✅, TASK-014 ✅)
+
+---
+
 ## [TASK-020] Event: сервис + контроллер + scheduler
 - **Дата:** 2026-03-07
 - **Статус:** done

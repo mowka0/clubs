@@ -1,6 +1,9 @@
 package com.clubs.club
 
 import com.clubs.config.NotFoundException
+import com.clubs.invite.GenerateInviteLinkRequest
+import com.clubs.invite.InviteLinkResponse
+import com.clubs.invite.InviteLinkService
 import com.clubs.membership.MembershipRepository
 import com.clubs.membership.MembershipService
 import org.springframework.http.HttpStatus
@@ -40,7 +43,8 @@ class ClubController(
     private val clubService: ClubService,
     private val clubRepository: ClubRepository,
     private val membershipService: MembershipService,
-    private val membershipRepository: MembershipRepository
+    private val membershipRepository: MembershipRepository,
+    private val inviteLinkService: InviteLinkService
 ) {
 
     @PostMapping
@@ -136,6 +140,23 @@ class ClubController(
 
         clubRepository.softDelete(id)
         return ResponseEntity.noContent().build()
+    }
+
+    @GetMapping("/invite/{code}")
+    fun getClubByInviteCode(@PathVariable code: String): ResponseEntity<ClubDto> {
+        val club = inviteLinkService.validateAndGetClub(code)
+        return ResponseEntity.ok(club)
+    }
+
+    @PostMapping("/{id}/invite-link")
+    fun generateInviteLink(
+        @PathVariable id: UUID,
+        @RequestBody request: GenerateInviteLinkRequest,
+        authentication: Authentication
+    ): ResponseEntity<InviteLinkResponse> {
+        val userId = UUID.fromString(authentication.principal as String)
+        val response = inviteLinkService.generateLink(id, userId, request.isSingleUse)
+        return ResponseEntity.status(HttpStatus.CREATED).body(response)
     }
 
     @GetMapping("/{id}/members")
