@@ -126,15 +126,33 @@ class TelegramBotServiceTest {
     }
 
     @Test
-    fun `processUpdate with myChatMember does not crash`() {
+    fun `processUpdate with myChatMember added sends linking instructions`() {
+        val groupId = -100123L
         val update = TelegramUpdate(
             updateId = 6L,
+            myChatMember = TelegramChatMemberUpdated(
+                chat = TelegramChat(id = groupId, type = "group", title = "Test Group"),
+                from = TelegramUser(id = 123L, firstName = "Ivan"),
+                newChatMember = TelegramChatMember(
+                    user = TelegramUser(id = 999L, firstName = "ClubsBot"),
+                    status = "member"
+                )
+            )
+        )
+        telegramBotService.processUpdate(update)
+        verify(telegramApiClient).sendMessage(eq(groupId), any(), anyOrNull())
+    }
+
+    @Test
+    fun `processUpdate with myChatMember removed does not send message`() {
+        val update = TelegramUpdate(
+            updateId = 7L,
             myChatMember = TelegramChatMemberUpdated(
                 chat = TelegramChat(id = -100123L, type = "group", title = "Test Group"),
                 from = TelegramUser(id = 123L, firstName = "Ivan"),
                 newChatMember = TelegramChatMember(
                     user = TelegramUser(id = 999L, firstName = "ClubsBot"),
-                    status = "member"
+                    status = "left"
                 )
             )
         )

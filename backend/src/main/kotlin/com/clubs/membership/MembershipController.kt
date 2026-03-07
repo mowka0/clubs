@@ -1,5 +1,6 @@
 package com.clubs.membership
 
+import com.clubs.bot.TelegramApiClient
 import com.clubs.club.ClubRepository
 import com.clubs.config.NotFoundException
 import com.clubs.config.ValidationException
@@ -19,7 +20,8 @@ data class JoinClubResponse(
 class MembershipController(
     private val membershipService: MembershipService,
     private val clubRepository: ClubRepository,
-    private val inviteLinkService: InviteLinkService
+    private val inviteLinkService: InviteLinkService,
+    private val telegramApiClient: TelegramApiClient
 ) {
 
     @PostMapping("/{id}/join")
@@ -37,10 +39,9 @@ class MembershipController(
 
         val membership = membershipService.joinClub(userId, id)
 
-        val telegramInviteLink = if (club.telegramGroupId != null) {
-            // Will be populated by bot integration in TASK-030
-            null
-        } else null
+        val telegramInviteLink = club.telegramGroupId?.let {
+            telegramApiClient.createChatInviteLink(it)
+        }
 
         return ResponseEntity.ok(JoinClubResponse(membership, telegramInviteLink))
     }
@@ -58,7 +59,9 @@ class MembershipController(
 
         inviteLinkService.consumeLink(code)
 
-        val telegramInviteLink = if (club.telegramGroupId != null) null else null
+        val telegramInviteLink = club.telegramGroupId?.let {
+            telegramApiClient.createChatInviteLink(it)
+        }
 
         return ResponseEntity.ok(JoinClubResponse(membership, telegramInviteLink))
     }

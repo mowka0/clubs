@@ -210,6 +210,16 @@ class TelegramBotService(
         val newStatus = update.newChatMember?.status
         val chatId = update.chat.id
         log.info("Bot membership changed to '{}' in chat {} ({})", newStatus, chatId, update.chat.title)
+
+        if (newStatus == "member" || newStatus == "administrator") {
+            val text = "Привет! Я бот приложения <b>Clubs</b>.\n\n" +
+                "Чтобы привязать эту группу к клубу, организатор должен:\n" +
+                "1. Открыть приложение Clubs\n" +
+                "2. Перейти в настройки клуба\n" +
+                "3. Указать ID этой группы: <code>$chatId</code>\n\n" +
+                "После привязки здесь будут работать команды /кто_идет, /события и /мой_рейтинг."
+            telegramApiClient.sendMessage(chatId, text)
+        }
     }
 
     fun buildDeepLink(param: String): String = "$miniAppUrl?startapp=$param"

@@ -720,7 +720,7 @@
         "Шаг 5: Проверить что invite_link генерируется через Bot API"
       ],
       "dependencies": ["TASK-028", "TASK-010"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-031",

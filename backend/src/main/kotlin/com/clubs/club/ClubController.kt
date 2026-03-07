@@ -37,6 +37,8 @@ data class UpdateClubRequest(
     val applicationQuestion: String? = null
 )
 
+data class LinkGroupRequest(val telegramGroupId: Long)
+
 @RestController
 @RequestMapping("/api/clubs")
 class ClubController(
@@ -158,6 +160,19 @@ class ClubController(
         val userId = UUID.fromString(authentication.principal as String)
         val response = inviteLinkService.generateLink(id, userId, request.isSingleUse)
         return ResponseEntity.status(HttpStatus.CREATED).body(response)
+    }
+
+    @PostMapping("/{id}/link-group")
+    fun linkGroup(
+        @PathVariable id: UUID,
+        @RequestBody request: LinkGroupRequest,
+        authentication: Authentication
+    ): ResponseEntity<ClubDto> {
+        val userId = UUID.fromString(authentication.principal as String)
+        val club = clubRepository.findById(id) ?: throw NotFoundException("Club $id not found")
+        if (club.ownerId != userId) throw AccessDeniedException("Only the club owner can link a Telegram group")
+        val updated = clubRepository.linkGroup(id, request.telegramGroupId)
+        return ResponseEntity.ok(updated)
     }
 
     @GetMapping("/{id}/members")

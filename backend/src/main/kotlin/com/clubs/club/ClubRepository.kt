@@ -124,6 +124,15 @@ class ClubRepository(private val dsl: DSLContext) {
         return findById(id) ?: throw IllegalStateException("Club $id not found after update")
     }
 
+    fun linkGroup(id: UUID, telegramGroupId: Long): ClubDto {
+        dsl.update(CLUBS)
+            .set(CLUBS.TELEGRAM_GROUP_ID, telegramGroupId)
+            .set(CLUBS.UPDATED_AT, OffsetDateTime.now())
+            .where(CLUBS.ID.eq(id))
+            .execute()
+        return findById(id) ?: throw IllegalStateException("Club $id not found after update")
+    }
+
     fun softDelete(id: UUID) {
         dsl.update(CLUBS)
             .set(CLUBS.IS_ACTIVE, false)

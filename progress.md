@@ -497,6 +497,36 @@
 
 ---
 
+## [TASK-030] Telegram Bot: привязка Telegram-группы к клубу
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `club/ClubRepository.kt` — добавлен метод `linkGroup(id, telegramGroupId)`: `UPDATE clubs SET telegram_group_id = ?, updated_at = ? WHERE id = ?`, возвращает обновлённый `ClubDto`
+  - `club/ClubController.kt` — добавлен эндпоинт `POST /api/clubs/{id}/link-group`:
+    - Проверяет что запрашивающий пользователь — владелец клуба (иначе 403)
+    - Сохраняет `telegram_group_id` через `ClubRepository.linkGroup()`
+    - Body: `{telegramGroupId: Long}`
+  - `membership/MembershipController.kt` — интегрирован `TelegramApiClient`:
+    - `joinClub()`: при наличии `club.telegramGroupId` вызывает `telegramApiClient.createChatInviteLink(telegramGroupId)` и возвращает ссылку в `JoinClubResponse.telegramInviteLink`
+    - `joinByInvite()`: аналогично генерирует invite link через Bot API
+  - `bot/TelegramBotService.kt` — улучшен `handleBotMembershipChanged()`:
+    - При `status = "member"` или `"administrator"`: бот отправляет сообщение с инструкцией по привязке группы и Chat ID (`$chatId`) для организатора
+    - При других статусах (left, kicked) — только логирование
+  - `bot/TelegramBotServiceTest.kt` — обновлены/добавлены тесты:
+    - Переименован `processUpdate with myChatMember does not crash` → `processUpdate with myChatMember added sends linking instructions` — проверяет что при добавлении бота отправляется сообщение
+    - Добавлен `processUpdate with myChatMember removed does not send message` — статус `left` → без сообщений
+  - `./gradlew build --rerun-tasks` — BUILD SUCCESSFUL, все тесты проходят
+- **Архитектурные решения:**
+  - `MembershipController` инжектирует `TelegramApiClient` напрямую (не через сервис) — invite link генерация не требует бизнес-логики
+  - `createChatInviteLink` graceful (возвращает null при ошибке или пустом botToken) — не блокирует вступление
+  - Bot message с Chat ID в `<code>` тэге — удобно для копирования
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-031 — Групповые уведомления (deps: TASK-028 ✅, TASK-019 ✅, NotificationService ✅)
+  2. TASK-034 — Подписки рекуррентное списание (deps: TASK-033 ✅, TASK-014 ✅)
+
+---
+
 ## [TASK-032] Telegram Bot: личные уведомления с Redis-очередью и rate limiting
 - **Дата:** 2026-03-07
 - **Статус:** done
