@@ -610,7 +610,7 @@
         "Шаг 5: После 48ч — попытка изменить — ошибка 400 'finalized'"
       ],
       "dependencies": ["TASK-020", "TASK-024"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-026",

@@ -456,6 +456,37 @@
 
 ---
 
+## [TASK-025] Event: отметка присутствия, оспаривание, финализация через 48 часов
+- **Дата:** 2026-03-07
+- **Статус:** done
+- **Что сделано:**
+  - `V10__add_attendance_first_recorded_at.sql` — новая миграция: добавлена колонка `attendance_first_recorded_at TIMESTAMP WITH TIME ZONE` в таблицу events для отслеживания момента первой отметки
+  - `event/AttendanceService.kt` — Spring @Service:
+    - `recordAttendance(organizerId, eventId, attendances)` — проверки: организатор, +12ч после события, не финализировано, в пределах 48ч-окна; обновляет `attended` + `final_status` (attended/absent) для каждого участника; вызывает `markAttendanceFirstRecorded` если первая отметка
+    - `disputeAttendance(userId, eventId, targetUserId)` — только сам участник может оспорить, только если отмечен как absent, только до финализации
+  - `event/EventRepository.kt` — новые методы:
+    - `getAttendanceFirstRecordedAt(id)` — raw SQL, возвращает timestamp первой отметки
+    - `markAttendanceFirstRecorded(id)` — raw SQL, устанавливает `attendance_first_recorded_at = now()` только если ещё не задано
+    - `finalizeAttendance(id)` — SET attendance_finalized=true, attendance_finalized_at=now()
+    - `findEventsReadyForFinalization()` — raw SQL: события с первой отметкой + 48ч <= now() и не финализированы
+  - `event/EventResponseRepository.kt` — новый метод `updateAttendance(eventId, userId, attended)`: обновляет `attended` и `final_status` (attended/absent)
+  - `event/EventScheduler.kt` — два новых scheduled task:
+    - `finalizeAttendanceForEligibleEvents()` — каждый час, финализирует события где attendance_first_recorded_at + 48ч <= now()
+    - `remindOrganizersToMarkAttendance()` — каждый час, логирует напоминание организаторам через 12ч после события (реальные уведомления в TASK-032)
+  - `event/EventController.kt` — два новых эндпоинта:
+    - `POST /api/events/{id}/attendance` → 200: отметка присутствия (body: RecordAttendanceRequest)
+    - `POST /api/events/{id}/dispute/{targetUserId}` → 200: оспаривание отметки
+  - `AttendanceServiceTest.kt` — 13 unit-тестов (mockito-kotlin): все проходят
+    - recordAttendance: not found, non-organizer, too early, finalized, success, within 48h, after 48h
+    - disputeAttendance: another user, not found, finalized, no response, not absent, success
+  - `./gradlew build && ./gradlew test --rerun-tasks` — BUILD SUCCESSFUL, 13/13 новых тестов
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-026 — Reputation: сервис расчёта (deps: TASK-025 ✅) — все зависимости выполнены
+  2. TASK-028 — Telegram Bot initialization (deps: TASK-001)
+
+---
+
 ## [TASK-024] Event Stage 2: контроллер confirm/decline + авто-промоция из waitlist
 - **Дата:** 2026-03-07
 - **Статус:** done

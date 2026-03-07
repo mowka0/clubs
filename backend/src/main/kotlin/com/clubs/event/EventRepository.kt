@@ -111,6 +111,70 @@ class EventRepository(private val dsl: DSLContext) {
     }
 
     /**
+     * Returns attendance_first_recorded_at for the given event, or null if not yet set.
+     */
+    fun getAttendanceFirstRecordedAt(id: UUID): java.time.OffsetDateTime? {
+        val result = dsl.resultQuery(
+            "SELECT attendance_first_recorded_at FROM events WHERE id = ?", id
+        ).fetch()
+        if (result.isEmpty()) return null
+        return result.first().get(0, java.time.OffsetDateTime::class.java)
+    }
+
+    /**
+     * Sets attendance_first_recorded_at = now() only if not already set.
+     */
+    fun markAttendanceFirstRecorded(id: UUID) {
+        dsl.execute(
+            "UPDATE events SET attendance_first_recorded_at = now(), updated_at = now() " +
+                "WHERE id = ? AND attendance_first_recorded_at IS NULL",
+            id
+        )
+    }
+
+    /**
+     * Finalizes attendance: sets attendance_finalized=true and attendance_finalized_at=now().
+     */
+    fun finalizeAttendance(id: UUID) {
+        dsl.update(EVENTS)
+            .set(EVENTS.ATTENDANCE_FINALIZED, true)
+            .set(EVENTS.ATTENDANCE_FINALIZED_AT, OffsetDateTime.now())
+            .set(EVENTS.UPDATED_AT, OffsetDateTime.now())
+            .where(EVENTS.ID.eq(id))
+            .execute()
+    }
+
+    /**
+     * Finds events where attendance was first recorded 48+ hours ago and not yet finalized.
+     */
+    fun findEventsReadyForFinalization(): List<EventDto> {
+        return dsl.resultQuery(
+            "SELECT * FROM events WHERE attendance_first_recorded_at IS NOT NULL " +
+                "AND attendance_finalized = false " +
+                "AND attendance_first_recorded_at + INTERVAL '48 hours' <= now()"
+        ).fetch()
+            .map { record ->
+                EventDto(
+                    id = record.get("id", UUID::class.java)!!,
+                    clubId = record.get("club_id", UUID::class.java)!!,
+                    title = record.get("title", String::class.java)!!,
+                    description = record.get("description", String::class.java),
+                    location = record.get("location", String::class.java),
+                    eventDatetime = record.get("event_datetime", OffsetDateTime::class.java)!!,
+                    participantLimit = record.get("participant_limit", Int::class.java)!!,
+                    confirmedCount = record.get("confirmed_count", Int::class.java)!!,
+                    votingOpensDaysBefore = record.get("voting_opens_days_before", Int::class.java)!!,
+                    status = record.get("status", String::class.java)!!,
+                    stage2Triggered = record.get("stage_2_triggered", Boolean::class.java)!!,
+                    attendanceFinalized = record.get("attendance_finalized", Boolean::class.java)!!,
+                    attendanceFinalizedAt = record.get("attendance_finalized_at", OffsetDateTime::class.java),
+                    createdAt = record.get("created_at", OffsetDateTime::class.java)!!,
+                    updatedAt = record.get("updated_at", OffsetDateTime::class.java)!!
+                )
+            }
+    }
+
+    /**
      * Atomically increments confirmed_count if below limit. Returns new count, or null if limit reached.
      */
     fun atomicIncrementConfirmedCount(id: UUID, limit: Int): Int? {

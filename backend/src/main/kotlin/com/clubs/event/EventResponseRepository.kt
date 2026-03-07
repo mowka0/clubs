@@ -98,6 +98,17 @@ class EventResponseRepository(private val dsl: DSLContext) {
             .map { it.toDto() }
     }
 
+    fun updateAttendance(eventId: UUID, userId: UUID, attended: Boolean) {
+        val finalStatus = if (attended) FinalStatus.attended else FinalStatus.absent
+        dsl.update(EVENT_RESPONSES)
+            .set(EVENT_RESPONSES.ATTENDED, attended)
+            .set(EVENT_RESPONSES.FINAL_STATUS, finalStatus)
+            .set(EVENT_RESPONSES.UPDATED_AT, OffsetDateTime.now())
+            .where(EVENT_RESPONSES.EVENT_ID.eq(eventId))
+            .and(EVENT_RESPONSES.USER_ID.eq(userId))
+            .execute()
+    }
+
     fun countByStatus(eventId: UUID): VoteCountsDto {
         val responses = findByEvent(eventId)
         return VoteCountsDto(

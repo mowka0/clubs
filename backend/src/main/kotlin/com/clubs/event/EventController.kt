@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.*
 import java.time.OffsetDateTime
 import java.util.UUID
 
+data class AttendanceEntryRequest(val userId: UUID, val attended: Boolean)
+data class RecordAttendanceRequest(val attendances: List<AttendanceEntryRequest>)
+
 data class CreateEventRequest(
     val title: String,
     val description: String? = null,
@@ -27,7 +30,8 @@ data class UpdateEventRequest(
 
 @RestController
 class EventController(
-    private val eventService: EventService
+    private val eventService: EventService,
+    private val attendanceService: AttendanceService
 ) {
 
     @PostMapping("/api/clubs/{clubId}/events")
@@ -97,5 +101,31 @@ class EventController(
         val userId = UUID.fromString(authentication.principal as String)
         eventService.cancelEvent(id, userId)
         return ResponseEntity.noContent().build()
+    }
+
+    @PostMapping("/api/events/{id}/attendance")
+    fun recordAttendance(
+        @PathVariable id: UUID,
+        @RequestBody request: RecordAttendanceRequest,
+        authentication: Authentication
+    ): ResponseEntity<Void> {
+        val userId = UUID.fromString(authentication.principal as String)
+        attendanceService.recordAttendance(
+            organizerId = userId,
+            eventId = id,
+            attendances = request.attendances.map { AttendanceEntry(it.userId, it.attended) }
+        )
+        return ResponseEntity.ok().build()
+    }
+
+    @PostMapping("/api/events/{id}/dispute/{targetUserId}")
+    fun disputeAttendance(
+        @PathVariable id: UUID,
+        @PathVariable targetUserId: UUID,
+        authentication: Authentication
+    ): ResponseEntity<Void> {
+        val userId = UUID.fromString(authentication.principal as String)
+        attendanceService.disputeAttendance(userId, id, targetUserId)
+        return ResponseEntity.ok().build()
     }
 }

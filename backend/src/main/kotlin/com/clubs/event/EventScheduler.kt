@@ -71,6 +71,48 @@ class EventScheduler(
         log.info("Stage 2 processed for ${events.size} event(s)")
     }
 
+    /**
+     * Every hour: finalize attendance for events where attendance_first_recorded_at + 48h <= now().
+     * After finalization, attendance records are immutable.
+     */
+    @Scheduled(fixedDelay = 60 * 60 * 1000L)
+    fun finalizeAttendanceForEligibleEvents() {
+        val events = eventRepository.findEventsReadyForFinalization()
+        if (events.isEmpty()) return
+
+        events.forEach { event ->
+            try {
+                eventRepository.finalizeAttendance(event.id)
+                log.info("Finalized attendance for event ${event.id}")
+            } catch (e: Exception) {
+                log.error("Failed to finalize attendance for event ${event.id}: ${e.message}", e)
+            }
+        }
+
+        log.info("Attendance finalized for ${events.size} event(s)")
+    }
+
+    /**
+     * Every hour: notify organizers that 12h have passed since their event (attendance marking reminder).
+     * Finds events where event_datetime + 12h <= now() and attendance_finalized = false.
+     * Logs a reminder (actual push notification requires TASK-032).
+     */
+    @Scheduled(fixedDelay = 60 * 60 * 1000L)
+    fun remindOrganizersToMarkAttendance() {
+        val cutoff = OffsetDateTime.now().minusHours(12)
+        val events = dsl.selectFrom(EVENTS)
+            .where(EVENTS.EVENT_DATETIME.le(cutoff))
+            .and(EVENTS.ATTENDANCE_FINALIZED.eq(false))
+            .and(EVENTS.STATUS.eq(EventStatus.stage_2))
+            .fetch()
+
+        events.forEach { record ->
+            log.info(
+                "Organizer notification needed: event ${record.get(EVENTS.ID)} is ready for attendance marking"
+            )
+        }
+    }
+
     private fun processStage2(event: EventDto) {
         val limit = event.participantLimit
         val goingResponses = eventResponseRepository.findGoingByEvent(event.id)
