@@ -53,6 +53,9 @@ dependencies {
     // jOOQ codegen JDBC driver
     jooqGenerator("org.postgresql:postgresql")
 
+    // S3 (Yandex Object Storage / MinIO — AWS SDK v1 compatible)
+    implementation("com.amazonaws:aws-java-sdk-s3:1.12.780")
+
     // Test
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

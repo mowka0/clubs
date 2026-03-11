@@ -1123,3 +1123,32 @@
   - InvitePage не требует аутентификации для загрузки клуба (skipAuth не нужен — токен есть у авторизованного пользователя)
 - **Следующие шаги:**
   - Все задачи выполнены (TASK-041 был последней pending задачей)
+
+---
+
+## [TASK-006] S3 конфигурация: Yandex Object Storage / MinIO
+- **Дата:** 2026-03-11
+- **Статус:** done
+- **Что сделано:**
+  - `backend/build.gradle.kts` — добавлена зависимость `com.amazonaws:aws-java-sdk-s3:1.12.780`
+  - `backend/src/main/kotlin/com/clubs/storage/S3Properties.kt` — `@ConfigurationProperties(prefix = "storage.s3")` data class (endpoint, bucket, accessKey, secretKey, region, pathStyleAccess)
+  - `backend/src/main/kotlin/com/clubs/storage/S3Config.kt` — `@Configuration` создаёт `AmazonS3` bean; при старте проверяет/создаёт bucket (с graceful fallback если S3 недоступен)
+  - `backend/src/main/kotlin/com/clubs/storage/S3FileStorageService.kt` — реализует `FileStorageService`:
+    - `uploadFile(bytes, key)` → валидирует размер (≤5 MB) и расширение (jpg/jpeg/png), устанавливает content-type, загружает через `putObject`, возвращает URL
+    - `getFileUrl(key)` → `endpoint/bucket/key` (без двойных слешей)
+    - `deleteFile(key)` → `deleteObject`
+  - `backend/src/main/resources/application.yml` — добавлен блок `storage.s3` с переменными окружения; в dev профиле указывает на MinIO (localhost:9000), в prod на Yandex Cloud (storage.yandexcloud.net), pathStyleAccess=false
+  - `backend/src/test/kotlin/com/clubs/storage/S3FileStorageServiceTest.kt` — 11 unit-тестов (mock AmazonS3):
+    - uploadFile: jpg/png success, file > 5MB → ValidationException, bad extension → ValidationException, no extension → ValidationException, jpeg → success, exactly 5MB → success
+    - getFileUrl: correct URL, strips leading slash from key, strips trailing slash from endpoint
+    - deleteFile: delegates to S3
+  - `./gradlew build && ./gradlew test` — BUILD SUCCESSFUL, все 11 новых тестов + 216+ существующих прошли
+- **Архитектурные решения:**
+  - AWS SDK v1 (`AmazonS3`) — S3-совместим с MinIO и Yandex Cloud
+  - `pathStyleAccess=true` для MinIO (обязательно), `false` для Yandex Cloud (virtual-hosted style)
+  - S3Config всегда создаёт bean (не conditional) — FileStorageService уже инжектируется как optional в ClubService
+  - Bucket создаётся автоматически при старте с warn-логом при ошибке (не падает если S3 недоступен)
+  - Валидация расширения — по суффиксу ключа (key), а не по content-type (соответствует сигнатуре интерфейса)
+- **Проблемы:** нет
+- **Следующие шаги:**
+  - Все задачи выполнены. TASK-006 была последней pending задачей.

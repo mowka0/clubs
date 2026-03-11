@@ -169,7 +169,7 @@
         "Шаг 4: Вызвать deleteFile — файл удалён"
       ],
       "dependencies": ["TASK-001"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-007",

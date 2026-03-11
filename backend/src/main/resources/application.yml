@@ -51,6 +51,15 @@ telegram:
 app:
   mini-app-url: ${APP_MINI_APP_URL:https://t.me/clubsapp}
 
+storage:
+  s3:
+    endpoint: ${S3_ENDPOINT:http://localhost:9000}
+    bucket: ${S3_BUCKET:clubs}
+    access-key: ${S3_ACCESS_KEY:minioadmin}
+    secret-key: ${S3_SECRET_KEY:minioadmin}
+    region: ${S3_REGION:us-east-1}
+    path-style-access: ${S3_PATH_STYLE_ACCESS:true}
+
 logging:
   level:
     com.clubs: INFO
@@ -89,3 +98,12 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD:}
+
+storage:
+  s3:
+    endpoint: ${S3_ENDPOINT:https://storage.yandexcloud.net}
+    bucket: ${S3_BUCKET}
+    access-key: ${S3_ACCESS_KEY}
+    secret-key: ${S3_SECRET_KEY}
+    region: ${S3_REGION:ru-central1}
+    path-style-access: ${S3_PATH_STYLE_ACCESS:false}
