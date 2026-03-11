@@ -1,15 +1,16 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Tabbar, TabbarItem } from '@telegram-apps/telegram-ui'
+import { Tabbar } from '@telegram-apps/telegram-ui'
 
 interface Tab {
   path: string
   label: string
+  icon: string
 }
 
 const TABS: Tab[] = [
-  { path: '/', label: 'Discovery' },
-  { path: '/my-clubs', label: 'Мои клубы' },
-  { path: '/profile', label: 'Профиль' },
+  { path: '/', label: 'Discovery', icon: '🔍' },
+  { path: '/my-clubs', label: 'Мои клубы', icon: '🏠' },
+  { path: '/profile', label: 'Профиль', icon: '👤' },
 ]
 
 export function BottomTabBar() {
@@ -23,12 +24,25 @@ export function BottomTabBar() {
   return (
     <Tabbar>
       {TABS.map((tab) => (
-        <TabbarItem
+        <button
           key={tab.path}
-          selected={tab === activeTab}
           onClick={() => navigate(tab.path)}
-          text={tab.label}
-        />
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            padding: '8px 0',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: tab === activeTab ? 'var(--tg-theme-button-color, #2196F3)' : 'var(--tg-theme-hint-color, #888)',
+            fontSize: '10px',
+          }}
+        >
+          <span style={{ fontSize: '22px', marginBottom: '2px' }}>{tab.icon}</span>
+          <span style={{ fontWeight: tab === activeTab ? 700 : 400 }}>{tab.label}</span>
+        </button>
       ))}
     </Tabbar>
   )

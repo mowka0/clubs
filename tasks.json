@@ -942,7 +942,7 @@
         "Шаг 5: При отсутствии событий — empty state"
       ],
       "dependencies": ["TASK-037", "TASK-020", "TASK-022"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-039b",

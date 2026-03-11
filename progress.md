@@ -153,6 +153,36 @@
 
 ---
 
+## [TASK-039a] Frontend: внутренний экран клуба — таб 'События', EventPage, голосование Этап 1 & 2
+- **Дата:** 2026-03-11
+- **Статус:** done
+- **Что сделано:**
+  - `frontend/src/types/event.ts` — типы: Event, EventStats, EventResponse, MyEventStatus, VoteStatus
+  - `frontend/src/api/events.ts` — eventsApi: getClubEvents, getEvent, getEventStats, getEventResponses, vote, confirm, decline, getMyStatus
+  - `frontend/src/pages/ClubInteriorPage.tsx` — полный экран с 3 табами:
+    - Таб 'События': sub-tabs Предстоящие/Прошедшие, EventCard с status badge, оптимистичные voting кнопки (Пойду/Возможно/Не пойду), клик → /events/:id
+    - Loading skeleton (3 карточки), empty state "Пока нет предстоящих событий", error state + retry
+    - Таб 'Участники' и 'Мой профиль' — стаб "Скоро" (реализует TASK-039b)
+  - `frontend/src/pages/EventPage.tsx` — детальный экран события:
+    - Status badge, title, date (ru-RU locale), location, description
+    - Stats grid: going/maybe/notGoing с emoji
+    - Stage 2: Countdown таймер (real-time), блок confirmed/limit
+    - Stage 1: voting кнопки с optimistic update
+    - Stage 2 статусы: "✅ Место подтверждено" / "⏳ Вы в резерве (позиция N)" / "❌ Участие отклонено"
+    - Кнопки "Подтверждаю" / "Отказаться" (только при needsConfirmation)
+    - Polling каждые 30 секунд при status === 'stage_2' (useEffect + setInterval + cleanup)
+  - Исправлены pre-existing ошибки:
+    - `BottomTabBar.tsx`: заменён `TabbarItem` (не экспортируется из telegram-ui) на HTML-кнопки внутри `Tabbar`
+    - `sdk.ts`: добавлены type assertions для `initDataRaw` и `startParam`
+  - `npm run build` — BUILD SUCCESSFUL ✅ (tsc -b + vite build, 361 модуль)
+- **Проблемы:** `@telegram-apps/telegram-ui` v2 не экспортирует `TabbarItem` — использованы HTML-кнопки внутри `Tabbar`
+- **Следующие шаги:**
+  1. TASK-039b — Табы 'Участники' и 'Мой профиль' (deps: те же TASK-037 ✅, TASK-020 ✅, TASK-022 ✅)
+  2. TASK-040a — Панель организатора: форма создания клуба (deps: TASK-037 ✅, TASK-011 ✅)
+  3. TASK-041 — Flow вступления (deps: TASK-037 ✅, TASK-015 ✅, TASK-017 ✅)
+
+---
+
 ## [TASK-036] Frontend: React + TypeScript + Vite + @telegram-apps/sdk v2
 - **Дата:** 2026-03-06
 - **Статус:** in_progress (код написан, требуется `npm install && npm run dev` для верификации)

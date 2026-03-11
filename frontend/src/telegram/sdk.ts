@@ -68,7 +68,7 @@ export function getInitData(): string {
   }
   try {
     const params = retrieveLaunchParams()
-    return params.initDataRaw ?? ''
+    return (params.initDataRaw as string | undefined) ?? ''
   } catch {
     return ''
   }
@@ -77,7 +77,7 @@ export function getInitData(): string {
 export function getStartParam(): string | undefined {
   try {
     const params = retrieveLaunchParams()
-    return params.startParam
+    return params.startParam as string | undefined
   } catch {
     return import.meta.env.VITE_MOCK_START_PARAM
   }
