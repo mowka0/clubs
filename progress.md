@@ -183,6 +183,28 @@
 
 ---
 
+## [TASK-039b] Frontend: внутренний экран клуба — табы 'Участники' и 'Мой профиль'
+- **Дата:** 2026-03-11
+- **Статус:** done
+- **Что сделано:**
+  - `frontend/src/types/reputation.ts` — типы: UserClubReputation, AttendanceRecord
+  - `frontend/src/api/reputation.ts` — reputationApi: getClubReputation, getMyClubReputation, getUserClubReputation, getMyAttendance, getUserAttendance, disputeAttendance
+  - `frontend/src/api/membership.ts` — добавлены: getMyMembership, cancelSubscription
+  - `frontend/src/pages/ClubInteriorPage.tsx` — полная реализация двух табов:
+    - **Таб 'Участники'**: список с аватарами (или инициалами), индексом надёжности, бейджем организатора, skeleton при загрузке, empty state. Нажатие → MemberProfilePanel
+    - **MemberProfilePanel**: slide-up modal с аватаром, именем, метриками репутации (3 плитки), историей посещений. Закрывается по клику на overlay
+    - **Таб 'Мой профиль'**: 3 крупные метрики (reliabilityIndex, promiseFulfillmentPct, spontaneityCount), блок подписки (статус, следующее списание, цена, кнопка отмены с подтверждением), история посещений
+    - **AttendanceHistory**: для каждого события — статус was/wasn't, блок «Оспорить» при attended=false и !disputed, кнопка POST /events/{id}/dispute/{userId}
+    - **Subscription cancel flow**: кнопка → inline подтверждение → POST /clubs/{id}/leave → оптимистичный update статуса на cancelled
+    - skeleton при загрузке профиля, error state + retry для всех табов
+  - `npm run build` — BUILD SUCCESSFUL ✅ (362 модуля)
+- **Проблемы:** нет
+- **Следующие шаги:**
+  1. TASK-040a — Панель организатора: пошаговая форма создания клуба (deps: TASK-037 ✅, TASK-011 ✅)
+  2. TASK-041 — Flow вступления: Stars оплата, форма заявки, invite-ссылки (deps: TASK-037 ✅, TASK-015 ✅, TASK-017 ✅)
+
+---
+
 ## [TASK-036] Frontend: React + TypeScript + Vite + @telegram-apps/sdk v2
 - **Дата:** 2026-03-06
 - **Статус:** in_progress (код написан, требуется `npm install && npm run dev` для верификации)

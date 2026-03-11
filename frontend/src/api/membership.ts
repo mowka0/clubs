@@ -37,4 +37,10 @@ export const membershipApi = {
 
   getMyApplications: (): Promise<ApplicationDto[]> =>
     apiClient.get<ApplicationDto[]>('/applications/my'),
+
+  getMyMembership: (clubId: string): Promise<MembershipDto> =>
+    apiClient.get<MembershipDto>(`/clubs/${clubId}/my-membership`),
+
+  cancelSubscription: (clubId: string): Promise<void> =>
+    apiClient.post(`/clubs/${clubId}/leave`),
 }

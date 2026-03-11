@@ -966,7 +966,7 @@
         "Шаг 5: Подтвердить — статус меняется на cancelled"
       ],
       "dependencies": ["TASK-037", "TASK-020", "TASK-022"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-040a",
