@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { clubsApi, type CreateClubRequest } from '../api/clubs'
 import type { Club } from '../types/club'
 import { CLUB_CATEGORIES } from '../types/club'
+import { OrganizerClubManage } from './OrganizerClubManage'
 
 // ─── Form state ────────────────────────────────────────────────────────────────
 
@@ -652,7 +653,7 @@ function SuccessScreen({ club, onGoToClub, onCreateAnother }: { club: Club; onGo
 
 // ─── Main OrganizerPage ───────────────────────────────────────────────────────
 
-type View = 'dashboard' | 'create' | 'success'
+type View = 'dashboard' | 'create' | 'success' | 'manage'
 
 export function OrganizerPage() {
   const navigate = useNavigate()
@@ -661,6 +662,7 @@ export function OrganizerPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [createdClub, setCreatedClub] = useState<Club | null>(null)
+  const [managedClub, setManagedClub] = useState<Club | null>(null)
 
   const fetchMyClubs = useCallback(async () => {
     setLoading(true)
@@ -699,6 +701,18 @@ export function OrganizerPage() {
         onCreateAnother={() => {
           setCreatedClub(null)
           setView('create')
+        }}
+      />
+    )
+  }
+
+  if (view === 'manage' && managedClub) {
+    return (
+      <OrganizerClubManage
+        club={managedClub}
+        onBack={() => {
+          setManagedClub(null)
+          setView('dashboard')
         }}
       />
     )
@@ -768,7 +782,7 @@ export function OrganizerPage() {
           {myClubs.map(club => (
             <div
               key={club.id}
-              onClick={() => navigate(`/clubs/${club.id}/interior`)}
+              onClick={() => { setManagedClub(club); setView('manage') }}
               style={{
                 padding: '16px',
                 borderRadius: '12px',

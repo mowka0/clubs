@@ -1060,3 +1060,29 @@
   - Определение города: navigator.geolocation → IP-based fallback → ручной ввод
 
 ---
+
+---
+
+## [TASK-040b] Frontend: дашборд организатора — участники, заявки, события, отметка присутствия, финансы
+- **Дата:** 2026-03-11
+- **Статус:** done
+- **Что сделано:**
+  - `frontend/src/pages/OrganizerClubManage.tsx` — новый компонент управления клубом с 4 табами:
+    - **Участники**: список с аватарами, именами, датой вступления, индексом надёжности; loading skeleton, empty state
+    - **Заявки**: входящие заявки со статусом 'pending', таймер автоотклонения (48ч countdown), кнопки "Принять"/"Отклонить" с полем причины; optimistic UI удаляет заявку после действия
+    - **События**: список предстоящих + прошедших событий с визуальным различием; кнопка "Создать событие" → форма с валидацией; клик на событие → дашборд (статистика Пойду/Возможно/Не пойду, индикатор избытка/недобора, список ответов с финальным статусом) или экран отметки присутствия (toggle для каждого confirmed участника); POST /api/events/{id}/attendance
+    - **Финансы**: карточки activeMembers, monthlyRevenueStars, organizerShare (80%), platformShare (20%), nextBillingDate
+  - `frontend/src/api/events.ts` — добавлены `CreateEventRequest`, `createEvent(clubId, data)`, `markAttendance(eventId, entries)`
+  - `frontend/src/api/clubs.ts` — добавлены типы `ApplicationWithUser`, `FinancialStats`; методы `getApplications`, `approveApplication`, `rejectApplication`, `getFinancialStats`
+  - `frontend/src/pages/OrganizerPage.tsx` — добавлена view='manage' + state managedClub; клик на клуб в дашборде открывает OrganizerClubManage вместо navigate
+- **Проверки:**
+  - `npx tsc --noEmit` — 0 ошибок
+  - `./gradlew build` — BUILD SUCCESSFUL (backend не затронут)
+- **Архитектурные решения:**
+  - OrganizerClubManage — отдельный компонент (не внутри OrganizerPage) для чистоты кода
+  - Attendance view показывается только для completed событий с attendanceFinalized=false
+  - 48h countdown вычисляется на клиенте из createdAt заявки
+  - Surplus/deficit: going > limit → избыток, going < limit → недобор
+  - StatCard — вложенная функция внутри FinancesTab (одноразовое использование)
+- **Следующие шаги:**
+  1. TASK-041 — Frontend: flow вступления в клуб (Telegram Stars оплата, форма заявки, invite-ссылки)

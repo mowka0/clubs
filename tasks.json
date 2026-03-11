@@ -1014,7 +1014,7 @@
         "Шаг 6: Перейти к финансам — статистика отображается"
       ],
       "dependencies": ["TASK-040a", "TASK-017", "TASK-020", "TASK-035"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-041",

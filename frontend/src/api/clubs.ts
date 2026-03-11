@@ -1,6 +1,29 @@
 import { apiClient } from './apiClient'
 import type { Club, ClubFilters, ClubMember, PagedClubsResponse } from '../types/club'
 
+export interface ApplicationWithUser {
+  id: string
+  userId: string
+  clubId: string
+  answerText: string | null
+  status: 'pending' | 'approved' | 'rejected' | 'auto_rejected'
+  rejectionReason: string | null
+  createdAt: string
+  updatedAt: string
+  userFirstName: string | null
+  userLastName: string | null
+  userUsername: string | null
+  userAvatarUrl: string | null
+}
+
+export interface FinancialStats {
+  activeMembers: number
+  monthlyRevenueStars: number
+  organizerShare: number
+  platformShare: number
+  nextBillingDate: string | null
+}
+
 export interface CreateClubRequest {
   name: string
   city: string
@@ -56,4 +79,16 @@ export const clubsApi = {
 
   calculateRevenue: (price: number, limit: number): Promise<{ organizerShare: number; platformShare: number }> =>
     apiClient.get(`/clubs/revenue-calculator?price=${price}&limit=${limit}`),
+
+  getApplications: (clubId: string): Promise<ApplicationWithUser[]> =>
+    apiClient.get<ApplicationWithUser[]>(`/clubs/${clubId}/applications`),
+
+  approveApplication: (appId: string): Promise<void> =>
+    apiClient.put(`/applications/${appId}/approve`),
+
+  rejectApplication: (appId: string, reason?: string): Promise<void> =>
+    apiClient.put(`/applications/${appId}/reject`, { reason: reason ?? '' }),
+
+  getFinancialStats: (clubId: string): Promise<FinancialStats> =>
+    apiClient.get<FinancialStats>(`/clubs/${clubId}/finances`),
 }

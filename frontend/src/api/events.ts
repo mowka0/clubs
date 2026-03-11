@@ -1,6 +1,15 @@
 import { apiClient } from './apiClient'
 import type { Event, EventStats, EventResponse, MyEventStatus } from '../types/event'
 
+export interface CreateEventRequest {
+  title: string
+  description?: string
+  eventDatetime: string
+  location?: string
+  participantLimit: number
+  votingOpensDaysBefore: number
+}
+
 export const eventsApi = {
   getClubEvents: (clubId: string, filter: 'upcoming' | 'past' = 'upcoming'): Promise<Event[]> =>
     apiClient.get<Event[]>(`/clubs/${clubId}/events?filter=${filter}`),
@@ -25,4 +34,10 @@ export const eventsApi = {
 
   getMyStatus: (id: string): Promise<MyEventStatus> =>
     apiClient.get<MyEventStatus>(`/events/${id}/responses/me`),
+
+  createEvent: (clubId: string, data: CreateEventRequest): Promise<Event> =>
+    apiClient.post<Event>(`/clubs/${clubId}/events`, data),
+
+  markAttendance: (eventId: string, entries: { userId: string; attended: boolean }[]): Promise<void> =>
+    apiClient.post(`/events/${eventId}/attendance`, entries),
 }
