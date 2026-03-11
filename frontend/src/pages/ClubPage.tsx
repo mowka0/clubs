@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { clubsApi } from '../api/clubs'
 import { membershipApi } from '../api/membership'
+import { paymentsApi, openTelegramInvoice } from '../api/payments'
 import { useAuth } from '../hooks/useAuth'
 import type { Club } from '../types/club'
 import { CATEGORY_LABELS, ACCESS_TYPE_LABELS } from '../types/club'
-import type { MembershipDto } from '../api/membership'
 import { ApiError } from '../api/apiClient'
+
+type JoinStep = 'view' | 'confirm' | 'apply' | 'processing' | 'success' | 'apply-success'
 
 export function ClubPage() {
   const { id } = useParams<{ id: string }>()
@@ -14,105 +16,123 @@ export function ClubPage() {
   const { user } = useAuth()
 
   const [club, setClub] = useState<Club | null>(null)
-  const [membership, setMembership] = useState<MembershipDto | null | 'none'>('none')
+  const [isMember, setIsMember] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [joinLoading, setJoinLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [joinError, setJoinError] = useState<string | null>(null)
-  const [joinSuccess, setJoinSuccess] = useState(false)
-  const [showApplyForm, setShowApplyForm] = useState(false)
+
+  const [step, setStep] = useState<JoinStep>('view')
+  const [agreed, setAgreed] = useState(false)
   const [applyAnswer, setApplyAnswer] = useState('')
-  const [applySuccess, setApplySuccess] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
     setLoading(true)
     setError(null)
-
     clubsApi.getClub(id)
       .then(setClub)
       .catch(() => setError('Клуб не найден'))
       .finally(() => setLoading(false))
   }, [id])
 
-  // Check if current user is already a member
   useEffect(() => {
     if (!id || !user) return
     clubsApi.getMembers(id)
       .then((members) => {
-        const found = members.find((m) => m.userId === user.id)
-        if (found) {
-          setMembership({
-            id: '',
-            userId: user.id,
-            clubId: id,
-            role: found.role as MembershipDto['role'],
-            status: 'active',
-            joinedAt: found.joinedAt,
-            subscriptionExpiresAt: null,
-            lockedSubscriptionPrice: null,
-          })
-        } else {
-          setMembership(null)
-        }
+        setIsMember(members.some((m) => m.userId === user.id))
       })
       .catch(() => {
-        // 403 means not a member yet (expected for non-members)
-        setMembership(null)
+        // 403 for non-members — not a member yet
+        setIsMember(false)
       })
   }, [id, user])
 
-  const handleJoin = async () => {
+  const handleJoinDirect = async () => {
     if (!id) return
-    setJoinLoading(true)
-    setJoinError(null)
+    setStep('processing')
+    setActionError(null)
     try {
       await membershipApi.joinClub(id)
-      setJoinSuccess(true)
-      // Navigate to club interior after joining
-      setTimeout(() => navigate(`/clubs/${id}/interior`), 1500)
+      setStep('success')
     } catch (err) {
-      if (err instanceof ApiError) {
-        setJoinError(err.message)
-      } else {
-        setJoinError('Не удалось вступить в клуб')
-      }
-    } finally {
-      setJoinLoading(false)
+      const msg = err instanceof ApiError ? err.message : 'Не удалось вступить в клуб'
+      setActionError(msg)
+      setStep('confirm')
     }
   }
 
-  const handleApply = async () => {
+  const handleConfirmJoin = async () => {
+    if (!id || !club) return
+    setActionError(null)
+
+    if (club.subscriptionPrice > 0) {
+      // Paid club — trigger Telegram Stars payment
+      setStep('processing')
+      try {
+        const { invoiceLink } = await paymentsApi.createInvoice(id)
+        openTelegramInvoice(invoiceLink, async (status) => {
+          if (status === 'paid') {
+            // Payment done — backend handles membership creation via webhook
+            // Then join/confirm membership via API
+            try {
+              await membershipApi.joinClub(id)
+              setStep('success')
+            } catch {
+              // Membership might already be created by payment webhook
+              setStep('success')
+            }
+          } else if (status === 'cancelled') {
+            setStep('confirm')
+          } else {
+            setActionError('Оплата не прошла. Попробуйте ещё раз.')
+            setStep('confirm')
+          }
+        })
+      } catch {
+        setActionError('Не удалось создать счёт для оплаты')
+        setStep('confirm')
+      }
+    } else {
+      // Free club — join directly
+      await handleJoinDirect()
+    }
+  }
+
+  const handleApplySubmit = async () => {
     if (!id) return
-    setJoinLoading(true)
-    setJoinError(null)
+    setStep('processing')
+    setActionError(null)
     try {
       await membershipApi.applyToClub(id, applyAnswer)
-      setApplySuccess(true)
-      setShowApplyForm(false)
+      setStep('apply-success')
     } catch (err) {
-      if (err instanceof ApiError) {
-        setJoinError(err.message)
-      } else {
-        setJoinError('Не удалось подать заявку')
-      }
-    } finally {
-      setJoinLoading(false)
+      const msg = err instanceof ApiError ? err.message : 'Не удалось подать заявку'
+      setActionError(msg)
+      setStep('apply')
     }
   }
 
+  // ─── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div style={{ padding: 16 }}>
-        <div style={{ height: 200, background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)', borderRadius: 16, marginBottom: 16 }} />
-        <div style={{ height: 24, width: '60%', background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)', borderRadius: 8, marginBottom: 12 }} />
-        <div style={{ height: 16, width: '40%', background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)', borderRadius: 8, marginBottom: 8 }} />
-        <div style={{ height: 14, background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)', borderRadius: 8, marginBottom: 8 }} />
-        <div style={{ height: 14, width: '80%', background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)', borderRadius: 8 }} />
+        {[200, 24, 16, 14, 14].map((h, i) => (
+          <div
+            key={i}
+            style={{
+              height: h,
+              width: i === 1 ? '60%' : i === 2 ? '40%' : '100%',
+              background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
+              borderRadius: i === 0 ? 16 : 8,
+              marginBottom: i === 0 ? 16 : 8,
+            }}
+          />
+        ))}
       </div>
     )
   }
 
+  // ─── Error ──────────────────────────────────────────────────────────────────
   if (error || !club) {
     return (
       <div style={{ textAlign: 'center', padding: '48px 24px' }}>
@@ -120,28 +140,232 @@ export function ClubPage() {
         <p style={{ fontSize: 16, fontWeight: 600, color: 'var(--tg-theme-text-color, #000)', marginBottom: 8 }}>
           {error ?? 'Клуб не найден'}
         </p>
+        <button onClick={() => navigate(-1)} style={btnSecondaryStyle}>Назад</button>
+      </div>
+    )
+  }
+
+  const isOwner = user?.id === club.ownerId
+  const isFull = club.confirmedCount >= club.memberLimit
+
+  // ─── Success state ───────────────────────────────────────────────────────────
+  if (step === 'success') {
+    return (
+      <div style={{ padding: 24, textAlign: 'center' }}>
+        <p style={{ fontSize: 48, margin: '32px 0 16px' }}>🎉</p>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20, color: 'var(--tg-theme-text-color, #000)' }}>
+          Вы вступили в клуб!
+        </h2>
+        <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--tg-theme-hint-color, #888)' }}>
+          {club.name}
+        </p>
         <button
-          onClick={() => navigate(-1)}
-          style={{
-            padding: '10px 24px',
-            borderRadius: 12,
-            border: 'none',
-            background: 'var(--tg-theme-button-color, #2196F3)',
-            color: 'var(--tg-theme-button-text-color, #fff)',
-            cursor: 'pointer',
-            fontSize: 14,
-          }}
+          onClick={() => navigate(`/clubs/${id}/interior`)}
+          style={btnPrimaryStyle}
         >
-          Назад
+          Открыть клуб
         </button>
       </div>
     )
   }
 
-  const isMember = membership !== null && membership !== 'none'
-  const isOwner = user?.id === club.ownerId
-  const isFull = club.confirmedCount >= club.memberLimit
+  // ─── Apply success ───────────────────────────────────────────────────────────
+  if (step === 'apply-success') {
+    return (
+      <div style={{ padding: 24, textAlign: 'center' }}>
+        <p style={{ fontSize: 48, margin: '32px 0 16px' }}>📬</p>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20, color: 'var(--tg-theme-text-color, #000)' }}>
+          Заявка отправлена!
+        </h2>
+        <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--tg-theme-hint-color, #888)' }}>
+          Обычно ответ приходит в течение нескольких часов.
+        </p>
+        <button onClick={() => navigate('/')} style={btnSecondaryStyle}>На главную</button>
+      </div>
+    )
+  }
 
+  // ─── Processing ──────────────────────────────────────────────────────────────
+  if (step === 'processing') {
+    return (
+      <div style={{ padding: 24, textAlign: 'center' }}>
+        <p style={{ fontSize: 32, margin: '32px 0 16px' }}>⏳</p>
+        <p style={{ fontSize: 16, color: 'var(--tg-theme-text-color, #000)' }}>
+          {club.subscriptionPrice > 0 ? 'Обработка оплаты...' : 'Вступаем...'}
+        </p>
+      </div>
+    )
+  }
+
+  // ─── Confirmation step ───────────────────────────────────────────────────────
+  if (step === 'confirm') {
+    return (
+      <div style={{ padding: '16px 16px 100px' }}>
+        <h2 style={{ margin: '0 0 16px', fontSize: 20, fontWeight: 700, color: 'var(--tg-theme-text-color, #000)' }}>
+          Вступление в клуб
+        </h2>
+
+        {/* Club name */}
+        <div style={cardStyle}>
+          <p style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 600, color: 'var(--tg-theme-text-color, #000)' }}>
+            {club.name}
+          </p>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--tg-theme-hint-color, #888)' }}>
+            {CATEGORY_LABELS[club.category] ?? club.category}
+            {club.city && ` • ${club.city}`}
+          </p>
+        </div>
+
+        {/* Price */}
+        {club.subscriptionPrice > 0 && (
+          <div style={{ ...cardStyle, background: 'var(--tg-theme-button-color, #2196F3)', color: '#fff' }}>
+            <p style={{ margin: '0 0 4px', fontSize: 13, opacity: 0.85 }}>Стоимость подписки</p>
+            <p style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>
+              {club.subscriptionPrice} ⭐ / мес
+            </p>
+          </div>
+        )}
+        {club.subscriptionPrice === 0 && (
+          <div style={{ ...cardStyle, background: '#E8F5E9' }}>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#2E7D32' }}>Бесплатный клуб</p>
+          </div>
+        )}
+
+        {/* Description */}
+        {club.description && (
+          <div style={cardStyle}>
+            <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: 'var(--tg-theme-text-color, #000)' }}>
+              О клубе
+            </p>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--tg-theme-text-color, #444)', lineHeight: 1.5 }}>
+              {club.description}
+            </p>
+          </div>
+        )}
+
+        {/* Rules */}
+        {club.rules && (
+          <div style={cardStyle}>
+            <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: 'var(--tg-theme-text-color, #000)' }}>
+              Правила клуба
+            </p>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--tg-theme-hint-color, #666)', lineHeight: 1.5 }}>
+              {club.rules}
+            </p>
+          </div>
+        )}
+
+        {/* Agreement checkbox */}
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 12,
+            padding: '12px 0',
+            cursor: 'pointer',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            style={{ width: 20, height: 20, marginTop: 2, flexShrink: 0, cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: 14, color: 'var(--tg-theme-text-color, #000)', lineHeight: 1.5 }}>
+            Я ознакомился с правилами и условиями клуба и согласен с ними
+          </span>
+        </label>
+
+        {/* Error */}
+        {actionError && (
+          <p style={{ color: 'var(--tg-theme-destructive-text-color, #f44336)', fontSize: 14, marginBottom: 12 }}>
+            {actionError}
+          </p>
+        )}
+
+        {/* Actions */}
+        <div style={fixedBottomStyle}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setStep('view')} style={{ ...btnSecondaryStyle, flex: 1 }}>
+              Назад
+            </button>
+            <button
+              onClick={handleConfirmJoin}
+              disabled={!agreed}
+              style={{ ...btnPrimaryStyle, flex: 2, opacity: agreed ? 1 : 0.5 }}
+            >
+              {club.subscriptionPrice > 0 ? `Оплатить ${club.subscriptionPrice} ⭐` : 'Вступить'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Apply form ──────────────────────────────────────────────────────────────
+  if (step === 'apply') {
+    return (
+      <div style={{ padding: '16px 16px 100px' }}>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 700, color: 'var(--tg-theme-text-color, #000)' }}>
+          Заявка в клуб
+        </h2>
+        <p style={{ margin: '0 0 16px', fontSize: 14, color: 'var(--tg-theme-hint-color, #888)' }}>
+          {club.name}
+        </p>
+
+        {club.applicationQuestion && (
+          <div style={cardStyle}>
+            <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--tg-theme-text-color, #000)' }}>
+              {club.applicationQuestion}
+            </p>
+            <textarea
+              value={applyAnswer}
+              onChange={(e) => setApplyAnswer(e.target.value)}
+              placeholder="Ваш ответ..."
+              rows={5}
+              style={{
+                width: '100%',
+                padding: 12,
+                borderRadius: 12,
+                border: '1px solid var(--tg-theme-hint-color, #ddd)',
+                background: 'var(--tg-theme-bg-color, #fff)',
+                color: 'var(--tg-theme-text-color, #000)',
+                fontSize: 14,
+                outline: 'none',
+                resize: 'vertical',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        )}
+
+        {!club.applicationQuestion && (
+          <p style={{ fontSize: 14, color: 'var(--tg-theme-text-color, #444)', marginBottom: 16 }}>
+            Нажмите «Отправить заявку», чтобы организатор мог рассмотреть вашу кандидатуру.
+          </p>
+        )}
+
+        {actionError && (
+          <p style={{ color: 'var(--tg-theme-destructive-text-color, #f44336)', fontSize: 14, marginBottom: 12 }}>
+            {actionError}
+          </p>
+        )}
+
+        <div style={fixedBottomStyle}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setStep('view')} style={{ ...btnSecondaryStyle, flex: 1 }}>
+              Назад
+            </button>
+            <button onClick={handleApplySubmit} style={{ ...btnPrimaryStyle, flex: 2 }}>
+              Отправить заявку
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Main club view ──────────────────────────────────────────────────────────
   return (
     <div style={{ paddingBottom: 100 }}>
       {/* Cover */}
@@ -172,7 +396,6 @@ export function ClubPage() {
         )}
       </div>
 
-      {/* Content */}
       <div style={{ padding: club.avatarUrl ? '44px 16px 16px' : '16px' }}>
         {/* Promo tags */}
         {club.promoTags.length > 0 && (
@@ -195,12 +418,10 @@ export function ClubPage() {
           </div>
         )}
 
-        {/* Title */}
         <h1 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 700, color: 'var(--tg-theme-text-color, #000)' }}>
           {club.name}
         </h1>
 
-        {/* Meta */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 12, fontSize: 13, color: 'var(--tg-theme-hint-color, #888)', flexWrap: 'wrap' }}>
           <span>{CATEGORY_LABELS[club.category] ?? club.category}</span>
           {club.city && <span>• {club.city}</span>}
@@ -210,23 +431,14 @@ export function ClubPage() {
           {club.subscriptionPrice === 0 && <span>• Бесплатно</span>}
         </div>
 
-        {/* Description */}
         {club.description && (
           <p style={{ margin: '0 0 16px', fontSize: 15, color: 'var(--tg-theme-text-color, #222)', lineHeight: 1.5 }}>
             {club.description}
           </p>
         )}
 
-        {/* Rules */}
         {club.rules && (
-          <div
-            style={{
-              background: 'var(--tg-theme-secondary-bg-color, #f5f5f5)',
-              borderRadius: 12,
-              padding: 12,
-              marginBottom: 16,
-            }}
-          >
+          <div style={{ ...cardStyle, marginBottom: 16 }}>
             <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 600, color: 'var(--tg-theme-text-color, #000)' }}>
               Правила клуба
             </p>
@@ -235,187 +447,71 @@ export function ClubPage() {
             </p>
           </div>
         )}
+      </div>
 
-        {/* Success states */}
-        {joinSuccess && (
-          <div
-            style={{
-              background: '#E8F5E9',
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 16,
-              textAlign: 'center',
-              color: '#2E7D32',
-              fontSize: 15,
-              fontWeight: 600,
-            }}
-          >
-            Вы успешно вступили в клуб!
-          </div>
-        )}
-        {applySuccess && (
-          <div
-            style={{
-              background: '#E3F2FD',
-              borderRadius: 12,
-              padding: 16,
-              marginBottom: 16,
-              textAlign: 'center',
-              color: '#1565C0',
-              fontSize: 15,
-            }}
-          >
-            <p style={{ margin: '0 0 4px', fontWeight: 600 }}>Заявка отправлена!</p>
-            <p style={{ margin: 0, fontSize: 13 }}>Обычно ответ приходит в течение нескольких часов.</p>
-          </div>
-        )}
-
-        {/* Error */}
-        {joinError && (
-          <p style={{ color: 'var(--tg-theme-destructive-text-color, #f44336)', fontSize: 14, marginBottom: 12 }}>
-            {joinError}
-          </p>
-        )}
-
-        {/* Apply form */}
-        {showApplyForm && (
-          <div style={{ marginBottom: 16 }}>
-            {club.applicationQuestion && (
-              <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--tg-theme-text-color, #000)' }}>
-                {club.applicationQuestion}
-              </p>
-            )}
-            <textarea
-              value={applyAnswer}
-              onChange={(e) => setApplyAnswer(e.target.value)}
-              placeholder="Ваш ответ..."
-              rows={4}
-              style={{
-                width: '100%',
-                padding: 12,
-                borderRadius: 12,
-                border: '1px solid var(--tg-theme-hint-color, #ddd)',
-                background: 'var(--tg-theme-secondary-bg-color, #f5f5f5)',
-                color: 'var(--tg-theme-text-color, #000)',
-                fontSize: 14,
-                outline: 'none',
-                resize: 'vertical',
-                boxSizing: 'border-box',
-              }}
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button
-                onClick={() => setShowApplyForm(false)}
-                style={{
-                  flex: 1,
-                  padding: 12,
-                  borderRadius: 12,
-                  border: '1px solid var(--tg-theme-hint-color, #ddd)',
-                  background: 'transparent',
-                  color: 'var(--tg-theme-text-color, #000)',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                }}
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handleApply}
-                disabled={joinLoading}
-                style={{
-                  flex: 2,
-                  padding: 12,
-                  borderRadius: 12,
-                  border: 'none',
-                  background: 'var(--tg-theme-button-color, #2196F3)',
-                  color: 'var(--tg-theme-button-text-color, #fff)',
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  opacity: joinLoading ? 0.7 : 1,
-                }}
-              >
-                {joinLoading ? 'Отправка...' : 'Отправить заявку'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Action buttons */}
-        <div style={{ position: 'fixed', bottom: 60, left: 0, right: 0, padding: '12px 16px', background: 'var(--tg-theme-bg-color, #fff)', borderTop: '1px solid var(--tg-theme-secondary-bg-color, #f0f0f0)' }}>
-          {isMember || isOwner ? (
-            <button
-              onClick={() => navigate(`/clubs/${id}/interior`)}
-              style={{
-                width: '100%',
-                padding: 14,
-                borderRadius: 14,
-                border: 'none',
-                background: 'var(--tg-theme-button-color, #2196F3)',
-                color: 'var(--tg-theme-button-text-color, #fff)',
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Открыть клуб
-            </button>
-          ) : applySuccess ? null : joinSuccess ? null : isFull ? (
-            <button
-              disabled
-              style={{
-                width: '100%',
-                padding: 14,
-                borderRadius: 14,
-                border: 'none',
-                background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)',
-                color: 'var(--tg-theme-hint-color, #888)',
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: 'default',
-              }}
-            >
-              Клуб заполнен
-            </button>
-          ) : club.accessType === 'open' ? (
-            <button
-              onClick={handleJoin}
-              disabled={joinLoading}
-              style={{
-                width: '100%',
-                padding: 14,
-                borderRadius: 14,
-                border: 'none',
-                background: 'var(--tg-theme-button-color, #2196F3)',
-                color: 'var(--tg-theme-button-text-color, #fff)',
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: 'pointer',
-                opacity: joinLoading ? 0.7 : 1,
-              }}
-            >
-              {joinLoading ? 'Вступаем...' : club.subscriptionPrice > 0 ? `Вступить за ${club.subscriptionPrice} ⭐/мес` : 'Вступить'}
-            </button>
-          ) : club.accessType === 'closed' && !showApplyForm ? (
-            <button
-              onClick={() => setShowApplyForm(true)}
-              style={{
-                width: '100%',
-                padding: 14,
-                borderRadius: 14,
-                border: 'none',
-                background: 'var(--tg-theme-button-color, #2196F3)',
-                color: 'var(--tg-theme-button-text-color, #fff)',
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Хочу вступить
-            </button>
-          ) : null}
-        </div>
+      {/* Fixed bottom action */}
+      <div style={fixedBottomStyle}>
+        {isMember || isOwner ? (
+          <button onClick={() => navigate(`/clubs/${id}/interior`)} style={btnPrimaryStyle}>
+            Открыть клуб
+          </button>
+        ) : isFull ? (
+          <button disabled style={{ ...btnPrimaryStyle, background: 'var(--tg-theme-secondary-bg-color, #f0f0f0)', color: 'var(--tg-theme-hint-color, #888)', cursor: 'default' }}>
+            Клуб заполнен
+          </button>
+        ) : club.accessType === 'open' ? (
+          <button onClick={() => { setAgreed(false); setActionError(null); setStep('confirm') }} style={btnPrimaryStyle}>
+            {club.subscriptionPrice > 0 ? `Вступить за ${club.subscriptionPrice} ⭐/мес` : 'Вступить'}
+          </button>
+        ) : club.accessType === 'closed' ? (
+          <button onClick={() => { setApplyAnswer(''); setActionError(null); setStep('apply') }} style={btnPrimaryStyle}>
+            Хочу вступить
+          </button>
+        ) : null}
       </div>
     </div>
   )
+}
+
+// ─── Shared styles ─────────────────────────────────────────────────────────────
+
+const btnPrimaryStyle: React.CSSProperties = {
+  width: '100%',
+  padding: 14,
+  borderRadius: 14,
+  border: 'none',
+  background: 'var(--tg-theme-button-color, #2196F3)',
+  color: 'var(--tg-theme-button-text-color, #fff)',
+  fontSize: 15,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+
+const btnSecondaryStyle: React.CSSProperties = {
+  width: '100%',
+  padding: 14,
+  borderRadius: 14,
+  border: '1px solid var(--tg-theme-hint-color, #ddd)',
+  background: 'transparent',
+  color: 'var(--tg-theme-text-color, #000)',
+  fontSize: 15,
+  fontWeight: 600,
+  cursor: 'pointer',
+}
+
+const cardStyle: React.CSSProperties = {
+  background: 'var(--tg-theme-secondary-bg-color, #f5f5f5)',
+  borderRadius: 12,
+  padding: 12,
+  marginBottom: 12,
+}
+
+const fixedBottomStyle: React.CSSProperties = {
+  position: 'fixed',
+  bottom: 60,
+  left: 0,
+  right: 0,
+  padding: '12px 16px',
+  background: 'var(--tg-theme-bg-color, #fff)',
+  borderTop: '1px solid var(--tg-theme-secondary-bg-color, #f0f0f0)',
 }

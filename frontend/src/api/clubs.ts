@@ -91,4 +91,7 @@ export const clubsApi = {
 
   getFinancialStats: (clubId: string): Promise<FinancialStats> =>
     apiClient.get<FinancialStats>(`/clubs/${clubId}/finances`),
+
+  getClubByInvite: (code: string): Promise<Club> =>
+    apiClient.get<Club>(`/clubs/invite/${code}`),
 }

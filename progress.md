@@ -1086,3 +1086,40 @@
   - StatCard — вложенная функция внутри FinancesTab (одноразовое использование)
 - **Следующие шаги:**
   1. TASK-041 — Frontend: flow вступления в клуб (Telegram Stars оплата, форма заявки, invite-ссылки)
+
+---
+
+## [TASK-041] Frontend: flow вступления в клуб — подтверждение, Stars оплата, заявки, invite-ссылки
+- **Дата:** 2026-03-11
+- **Статус:** done
+- **Что сделано:**
+  - `frontend/src/api/clubs.ts` — добавлен `getClubByInvite(code)`: GET /api/clubs/invite/{code}
+  - `frontend/src/api/payments.ts` — новый файл:
+    - `paymentsApi.createInvoice(clubId)` → POST /api/payments/create-invoice
+    - `openTelegramInvoice(invoiceLink, callback)` — открывает Telegram Stars invoice через `window.Telegram.WebApp.openInvoice`, в mock-режиме симулирует 'paid'
+  - `frontend/src/pages/ClubPage.tsx` — полный рефакторинг flow вступления:
+    - Состояния: `view | confirm | apply | processing | success | apply-success`
+    - Кнопка "Вступить" для открытого клуба → экран `confirm` (цена, описание, правила + чекбокс "Ознакомился и согласен")
+    - Для платного клуба: createInvoice → openTelegramInvoice → joinClub → success
+    - Для бесплатного клуба: прямой joinClub → success
+    - Кнопка "Хочу вступить" для закрытого → экран `apply` (вопрос организатора + textarea) → applyToClub → apply-success
+    - Обработка ошибок: клуб заполнен (кнопка disabled), уже участник (навигация в клуб)
+    - Loading/success/error states для каждого шага
+    - Не более 3 шагов: view → confirm → (payment/join) → success
+  - `frontend/src/pages/InvitePage.tsx` — полная реализация (ранее был stub):
+    - Загрузка клуба через `getClubByInvite(code)`
+    - 404 → экран "Ссылка недействительна"
+    - Показ карточки приватного клуба (cover, аватар, бейдж "Приватный клуб", мета-данные, описание, правила)
+    - Кнопка вступления → confirm → (Stars payment для платных / direct join для бесплатных) → success
+    - Обработка 409 (already member) как success
+    - Все loading/error/success states
+- **Проверки:**
+  - `npx tsc --noEmit` — 0 ошибок
+  - `./gradlew build` — BUILD SUCCESSFUL (backend не затронут)
+- **Архитектурные решения:**
+  - Telegram Stars: создаём invoice через бэкенд → передаём URL в `window.Telegram.WebApp.openInvoice` → бэкенд создаёт membership через webhook `successful_payment`
+  - В dev/mock режиме openTelegramInvoice симулирует успешную оплату (setTimeout 800ms)
+  - Confirmation step с чекбоксом — выполняет требование PRD "не более 3 шагов до вступления"
+  - InvitePage не требует аутентификации для загрузки клуба (skipAuth не нужен — токен есть у авторизованного пользователя)
+- **Следующие шаги:**
+  - Все задачи выполнены (TASK-041 был последней pending задачей)
