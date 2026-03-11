@@ -1,6 +1,19 @@
 import { apiClient } from './apiClient'
 import type { Club, ClubFilters, ClubMember, PagedClubsResponse } from '../types/club'
 
+export interface CreateClubRequest {
+  name: string
+  city: string
+  category: string
+  accessType: 'open' | 'closed' | 'private'
+  memberLimit: number
+  subscriptionPrice: number
+  description: string
+  rules?: string
+  applicationQuestion?: string
+  avatarBase64?: string
+}
+
 function buildQuery(filters: ClubFilters): string {
   const params = new URLSearchParams()
   if (filters.city) params.set('city', filters.city)
@@ -20,6 +33,9 @@ export const clubsApi = {
   getClubs: (filters: ClubFilters = {}): Promise<PagedClubsResponse> =>
     apiClient.get<PagedClubsResponse>(`/clubs${buildQuery(filters)}`),
 
+  getMyClubs: (): Promise<Club[]> =>
+    apiClient.get<Club[]>('/clubs/my'),
+
   getClub: (id: string): Promise<Club> =>
     apiClient.get<Club>(`/clubs/${id}`),
 
@@ -34,4 +50,10 @@ export const clubsApi = {
 
   getGeoCity: (): Promise<{ city: string | null }> =>
     apiClient.get('/geo/city'),
+
+  createClub: (data: CreateClubRequest): Promise<Club> =>
+    apiClient.post<Club>('/clubs', data),
+
+  calculateRevenue: (price: number, limit: number): Promise<{ organizerShare: number; platformShare: number }> =>
+    apiClient.get(`/clubs/revenue-calculator?price=${price}&limit=${limit}`),
 }

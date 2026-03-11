@@ -989,7 +989,7 @@
         "Шаг 5: Загрузить аватар — превью отображается"
       ],
       "dependencies": ["TASK-037", "TASK-011"],
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": "TASK-040b",
