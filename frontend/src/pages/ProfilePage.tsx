@@ -6,7 +6,7 @@ import { membershipApi, type ApplicationDto } from '../api/membership'
 import type { Club } from '../types/club'
 import { CATEGORY_LABELS } from '../types/club'
 
-function getInitials(firstName: string | null, lastName: string | null, username: string | null): string {
+function getInitials(firstName: string | null, _lastName: string | null, username: string | null): string {
   if (firstName) return firstName.charAt(0).toUpperCase()
   if (username) return username.charAt(0).toUpperCase()
   return '?'

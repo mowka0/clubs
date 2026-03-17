@@ -6,6 +6,7 @@ import { paymentsApi, openTelegramInvoice } from '../api/payments'
 import type { Club } from '../types/club'
 import { CATEGORY_LABELS } from '../types/club'
 import { ApiError } from '../api/apiClient'
+import { useAuth } from '../hooks/useAuth'
 
 type InviteStep = 'loading' | 'club' | 'confirm' | 'processing' | 'success' | 'error'
 
