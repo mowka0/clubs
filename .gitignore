@@ -1,7 +1,9 @@
 secrets.env
+.env
+.env.production
 backend/build/
 backend/.gradle/
-backend/src/generated/
+backend/logs/
 *.class
 .DS_Store
 frontend/node_modules/

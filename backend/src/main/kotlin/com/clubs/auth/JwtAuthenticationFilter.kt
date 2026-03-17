@@ -23,7 +23,7 @@ class JwtAuthenticationFilter(private val jwtService: JwtService) : OncePerReque
             val claims = jwtService.validateToken(token)
             if (claims != null && SecurityContextHolder.getContext().authentication == null) {
                 val userId = claims.subject
-                val telegramId = claims.get("telegram_id", Long::class.java)
+                val telegramId = (claims["telegram_id"] as? Number)?.toLong()
                 val auth = UsernamePasswordAuthenticationToken(
                     userId,
                     null,

@@ -27,7 +27,7 @@ const INITIAL_FORM: FormState = {
   category: 'sport',
   accessType: 'open',
   memberLimit: 30,
-  subscriptionPrice: 100,
+  subscriptionPrice: 0,
   description: '',
   rules: '',
   applicationQuestion: '',
@@ -256,7 +256,7 @@ function Step2({
           type="number"
           style={{ ...inputStyle, borderColor: errors.subscriptionPrice ? '#f44336' : undefined }}
           value={form.subscriptionPrice}
-          min={1}
+          min={0}
           onChange={e => setForm({ subscriptionPrice: Number(e.target.value) })}
         />
         <FieldError msg={errors.subscriptionPrice} />
@@ -504,7 +504,7 @@ function ClubCreationForm({ onSuccess, onCancel }: ClubFormProps) {
   function validateStep2(): boolean {
     const errs: Step2Errors = {}
     if (form.memberLimit < 10 || form.memberLimit > 80) errs.memberLimit = 'Лимит должен быть от 10 до 80'
-    if (form.subscriptionPrice <= 0) errs.subscriptionPrice = 'Цена должна быть больше 0'
+    if (form.subscriptionPrice < 0) errs.subscriptionPrice = 'Цена не может быть отрицательной'
     setStep2Errors(errs)
     return Object.keys(errs).length === 0
   }

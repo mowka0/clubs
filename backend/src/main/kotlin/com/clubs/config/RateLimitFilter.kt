@@ -12,15 +12,19 @@ import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 
 @Component
-class RateLimitFilter : OncePerRequestFilter() {
+class RateLimitFilter(private val environment: org.springframework.core.env.Environment) : OncePerRequestFilter() {
 
     private val ipBuckets = ConcurrentHashMap<String, Bucket>()
     private val userBuckets = ConcurrentHashMap<String, Bucket>()
 
+    private val isDevProfile: Boolean
+        get() = environment.activeProfiles.contains("dev")
+
     private fun getIpBucket(ip: String): Bucket {
         return ipBuckets.computeIfAbsent(ip) {
+            val capacity = if (isDevProfile) 1000L else 100L
             Bucket.builder()
-                .addLimit(Bandwidth.builder().capacity(100).refillGreedy(100, Duration.ofMinutes(1)).build())
+                .addLimit(Bandwidth.builder().capacity(capacity).refillGreedy(capacity, Duration.ofMinutes(1)).build())
                 .build()
         }
     }
@@ -38,7 +42,8 @@ class RateLimitFilter : OncePerRequestFilter() {
         response: HttpServletResponse,
         filterChain: FilterChain
     ) {
-        val ip = request.remoteAddr ?: "unknown"
+        val ip = request.getHeader("X-Forwarded-For")?.split(",")?.firstOrNull()?.trim()
+            ?: request.remoteAddr ?: "unknown"
         val ipBucket = getIpBucket(ip)
 
         if (!ipBucket.tryConsume(1)) {

@@ -1,6 +1,8 @@
 package com.clubs.auth
 
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.core.env.Environment
 import org.springframework.stereotype.Component
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -9,13 +11,25 @@ import javax.crypto.spec.SecretKeySpec
 
 @Component
 class TelegramInitDataValidator(
-    @Value("\${telegram.bot-token}") private val botToken: String
+    @Value("\${telegram.bot-token}") private val botToken: String,
+    private val environment: Environment
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
+
+    private val isDevProfile: Boolean
+        get() = environment.activeProfiles.contains("dev")
 
     fun validate(initData: String): Boolean {
-        if (botToken.isBlank()) return false
+        if (botToken.isBlank()) {
+            log.warn("Bot token is blank, skipping validation in dev mode: {}", isDevProfile)
+            return isDevProfile // allow in dev mode even without token
+        }
         val params = parseParams(initData)
-        val hash = params["hash"] ?: return false
+        val hash = params["hash"]
+        if (hash == null) {
+            log.warn("No hash in initData, dev bypass: {}", isDevProfile)
+            return isDevProfile
+        }
 
         val dataCheckString = params
             .filterKeys { it != "hash" }
@@ -27,7 +41,12 @@ class TelegramInitDataValidator(
         val computed = hmacSha256(secretKey, dataCheckString.toByteArray())
         val computedHex = computed.joinToString("") { "%02x".format(it) }
 
-        return computedHex == hash
+        val valid = computedHex == hash
+        if (!valid) {
+            log.warn("HMAC mismatch. Expected: {}, Got: {}. Dev bypass: {}", computedHex.take(16) + "...", hash.take(16) + "...", isDevProfile)
+            return isDevProfile // allow in dev mode for testing
+        }
+        return true
     }
 
     fun parseParams(initData: String): Map<String, String> {

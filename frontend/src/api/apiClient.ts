@@ -21,14 +21,23 @@ class ApiError extends Error {
 
 async function authenticate(): Promise<string | null> {
   const initData = getInitData()
+  console.log('[AUTH] initData:', initData ? initData.substring(0, 80) + '...' : 'EMPTY')
   if (!initData) return null
   try {
     const response = await fetch(`${BASE_URL}/auth/telegram`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true',
+      },
       body: JSON.stringify({ initData }),
     })
-    if (!response.ok) return null
+    console.log('[AUTH] response status:', response.status)
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '')
+      console.error('[AUTH] failed:', response.status, errText)
+      return null
+    }
     const data = await response.json() as { token: string; user: { id: string; telegramId: number; username: string | null; firstName: string | null; lastName: string | null; avatarUrl: string | null } }
     const { token, user } = data
     if (token && user) {
@@ -46,6 +55,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
     ...(init.headers as Record<string, string>),
   }
 

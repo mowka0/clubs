@@ -10,6 +10,7 @@ interface Tab {
 const TABS: Tab[] = [
   { path: '/', label: 'Discovery', icon: '🔍' },
   { path: '/my-clubs', label: 'Мои клубы', icon: '🏠' },
+  { path: '/organizer', label: 'Организатор', icon: '⚙️' },
   { path: '/profile', label: 'Профиль', icon: '👤' },
 ]
 
