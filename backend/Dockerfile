@@ -9,6 +9,7 @@ COPY src/ src/
 RUN ./gradlew bootJar --no-daemon -x test
 
 FROM eclipse-temurin:21-jre-alpine
+RUN apk add --no-cache curl
 WORKDIR /app
 COPY --from=build /app/build/libs/*.jar app.jar
 
