@@ -1,11 +1,15 @@
 secrets.env
 .env
 .env.production
+.env.local
 backend/build/
 backend/.gradle/
 backend/logs/
+backend/src/generated/jooq/
 *.class
+*.jar
 .DS_Store
 frontend/node_modules/
 frontend/dist/
 frontend/.env.local
+*.log
