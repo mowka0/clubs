@@ -1,7 +1,7 @@
 import { useAuthStore } from '../store/authStore'
 import { getInitData } from '../telegram/sdk'
 
-const BASE_URL = '/api'
+const BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
 type RequestOptions = Omit<RequestInit, 'body'> & {
   body?: unknown

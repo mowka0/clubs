@@ -5,7 +5,7 @@ secrets.env
 backend/build/
 backend/.gradle/
 backend/logs/
-backend/src/generated/jooq/
+# backend/src/generated/jooq/ — committed, needed for Docker build
 *.class
 *.jar
 .DS_Store
